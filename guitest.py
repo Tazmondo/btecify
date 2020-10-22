@@ -80,7 +80,7 @@ class musicgui:
         queuelist.grid()
 
         # BOTTOM LEFT LOGO
-        shitifyiconimage = tk.PhotoImage(file="shitify.png")
+        shitifyiconimage = tk.PhotoImage(file="shitify64.png")
         shitifyiconlabel = ttk.Label(frame1, image=shitifyiconimage)
         shitifyiconlabel.grid(column=0, row=1, sticky='nesw')
 

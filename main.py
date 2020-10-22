@@ -12,8 +12,6 @@ with open("programinfo.txt", "r") as file:
     APIKEY = lines[0]
     PLAYLISTURL = lines[1]
 
-
-
 DATAFILENAME = "data.txt"
 SEEDURATIONKEYWORD = "NOTHING"
 ICON = "shitify.ico"
