@@ -78,11 +78,15 @@ class Player:
 
     def play(self):
         count = 0
-        while not self.musicplayer.is_playing() or count > 20:
+        while not self.musicplayer.is_playing() and count < 20:
             print("Playing...")
             self.musicplayer.play()
             count += 1
             time.sleep(0.5)
+        if count >= 20:
+            print(f"FAILED TO PLAY SONG: {self.song.name}")
+            return False
+        return True
 
     def pause(self):
         self.musicplayer.pause()
@@ -393,13 +397,15 @@ def main():
             elif command == "song" and len(inp) > 1:
                 song = " ".join(inp[1:])
                 matches = searchsongname(playlist.songs.copy(), song)
-                if not matches:
+                if len(matches) == 0:
                     print("Song not found.")
-                if len(matches) > 1:
+                elif len(matches) > 1:
                     print("Be more specific. Found: ")
                     print(list(k.name for k in matches))
-                else:
+                elif len(matches) == 1:
                     player.manualsong(matches[0])
+                else:
+                    print("what???")
 
             elif command == "forceupdate" and len(inp) == 2:
                 value = inp[1]
