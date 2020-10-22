@@ -12,7 +12,7 @@ with open("programinfo.txt", "r") as file:
     APIKEY = lines[0]
     PLAYLISTURL = lines[1]
 
-print("poggers")
+
 
 DATAFILENAME = "data.txt"
 SEEDURATIONKEYWORD = "NOTHING"
