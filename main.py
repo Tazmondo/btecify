@@ -7,8 +7,12 @@ import random
 import time
 from win10toast import ToastNotifier
 
-APIKEY = 'AIzaSyAs-ISnT1QxDeP12SViHH21zGJaEJjwBYU'
-PLAYLISTURL = "https://www.youtube.com/playlist?list=PL22baOOM5dLcm2iZ6moLOiOtjeZ8IchUR"
+with open("programinfo.txt", "r") as file:
+    lines = file.readlines()
+    APIKEY = lines[0]
+    PLAYLISTURL = lines[1]
+
+
 DATAFILENAME = "data.txt"
 SEEDURATIONKEYWORD = "NOTHING"
 ICON = "shitify.ico"
