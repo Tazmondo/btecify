@@ -39,30 +39,38 @@ class tut1:
             pass
 
 class musicgui:
+    playlists = None
+    selectedplaylist = None
 
-    def __init__(self):
+    songqueue = None
+
+    def __init__(self, playlistnames):
         root = tk.Tk()
         root.option_add('*tearOff', tk.FALSE)
+        root.wm_title("sPoTiFy")
+        root.wm_iconbitmap('shitify.ico')
 
-        frame1 = ttk.Frame(root)
-        frame1.grid(columnspan=3, rowspan=2)
+        self.selectedplaylist = tk.StringVar()
+        self.playlists = playlistnames
+        self.songqueue = tk.StringVar(value=[f"{i}: Temp" for i in range(1,101)])
+
+        primaryframe = ttk.Frame(root)
+        primaryframe.grid()
 
         # QUEUE
-        queuelabelframe = ttk.Labelframe(frame1, text="Song queue")
-        templistvalue = list(range(1,101))
-        listvalue = tk.StringVar(value=list(templistvalue))
-        queuelist = tk.Listbox(queuelabelframe, height=15, listvariable=listvalue, state="disabled")
+        queuelabelframe = ttk.Labelframe(primaryframe, text="Song queue")
+        queuelist = tk.Listbox(queuelabelframe, height=15, listvariable=self.songqueue, state="disabled")
         queuelabelframe.grid(column=0, row=0)
         queuelist.grid()
 
         # DEFINING THE PLAYING FRAME
-        playingframe = ttk.Frame(frame1, relief='groove', padding=5)
-        playingframe.grid(column=1, row=0, columnspan=1, rowspan=4, sticky='nwe')
+        playingframe = ttk.Frame(primaryframe, relief='groove', padding=5)
+        playingframe.grid(column=1, row=0, sticky='')
 
-        songinfo = ttk.Label(playingframe, text="Temporary songname\nTemporary author\nTemporary duration")
+        songinfo = ttk.Label(playingframe, text="No song selected")
         songinfo.grid(column=0, row=0)
 
-        songdesc = ttk.Label(playingframe, text="TEMPORARY DESCRIPTION TEMPORARY DESCRIPTION\nTEMPORARY DESCRIPTION")
+        songdesc = ttk.Label(playingframe, text="No song selected")
         songdesc.grid(column=0, row=1)
 
         playingframeseperator = ttk.Separator(playingframe, orient=tk.HORIZONTAL)
@@ -72,8 +80,8 @@ class musicgui:
         songprogress.grid(column=0, row=3, sticky='s')
 
         # SONG SELECTION
-        songlistlabelframe = ttk.Labelframe(frame1, text="Song list")
-        templistvalue = ['1: lol', '2: pog', '3: gay']
+        songlistlabelframe = ttk.Labelframe(primaryframe, text="Song list")
+        templistvalue = ['test', 'test2', 'test3']
         songlist = tk.StringVar(value=list(reversed(templistvalue)))
         queuelist = tk.Listbox(songlistlabelframe, height=15, listvariable=songlist)
         songlistlabelframe.grid(column=2, row=0)
@@ -81,9 +89,55 @@ class musicgui:
 
         # BOTTOM LEFT LOGO
         shitifyiconimage = tk.PhotoImage(file="shitify64.png")
-        shitifyiconlabel = ttk.Label(frame1, image=shitifyiconimage)
+        shitifyiconlabel = ttk.Label(primaryframe, image=shitifyiconimage)
         shitifyiconlabel.grid(column=0, row=1, sticky='nesw')
+
+        # BOTTOM MIDDLE BUTTONS
+        bottommiddleframe = ttk.Frame(primaryframe, relief='groove', padding=5)
+        bottommiddleframe.grid(column=1, row=1,  sticky='ns')
+
+        pausebutton = ttk.Button(bottommiddleframe, text="PAUSE", command=self.pause)
+        pausebutton.grid(row=0, column=0, columnspan=2, sticky='ew')
+
+        skipbutton = ttk.Button(bottommiddleframe, text="SKIP", command=self.skip)
+        skipbutton.grid(row=1)
+
+        blacklistbutton = ttk.Button(bottommiddleframe, text="BLACKLIST", command=self.blacklist)
+        blacklistbutton.grid(row=1, column=1)
+
+        # BOTTOM RIGHT PLAYLIST SELECT
+        playlistselectframe = ttk.Frame(primaryframe, relief='groove', padding=3)
+        playlistselectframe.grid(row=1, column=2, sticky='ns')
+
+        playlistselectcombobox = ttk.Combobox(playlistselectframe,
+                                              values=self.playlists,
+                                              textvariable=self.selectedplaylist)
+        playlistselectcombobox.grid(sticky='ewn')
+
+        playlistselectbutton = ttk.Button(playlistselectframe, text="SELECT", command=self.chooseplaylist)
+        playlistselectbutton.grid(row=1)
 
         root.mainloop()
 
-musicgui()
+    def skip(self, *args):
+        print("skip")
+        pass
+
+    def pause(self, *args):
+        print("pause")
+        pass
+
+    def blacklist(self, *args):
+        print("bl")
+        pass
+
+    def updateplaylists(self, playlists):
+        self.playlists = playlists
+
+    def chooseplaylist(self, *args):
+        print(self.selectedplaylist.get())
+        pass
+
+
+playlists = ('music', 'bangers')
+musicgui(playlists)

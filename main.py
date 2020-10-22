@@ -100,7 +100,7 @@ class Player:
 
     def finished(self):
         pos = self.musicplayer.get_position()
-        if pos > 0.99:
+        if pos >= 0.99:
             return True
         return False
 
