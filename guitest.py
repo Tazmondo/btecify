@@ -1,60 +1,36 @@
 import tkinter as tk
 from tkinter import ttk
+from ttkthemes import ThemedTk
+from typing import List
 
-class tut1:
-    def __init__(self):
-        root = tk.Tk()
-        root.title("Feet to Meters")
-
-        mainframe = ttk.Frame(root, padding="3 3 12 12")
-        mainframe.grid(column=0, row=0, sticky=(tk.N, tk.W, tk.E, tk.S))
-        root.columnconfigure(0, weight=1)
-        root.rowconfigure(0, weight=1)
-
-        self.feet = tk.StringVar()
-        feet_entry = ttk.Entry(mainframe, width=7, textvariable=self.feet)
-        feet_entry.grid(column=2, row=1, sticky=(tk.W, tk.E))
-
-        self.meters = tk.StringVar()
-        ttk.Label(mainframe, textvariable=self.meters).grid(column=2, row=2, sticky=(tk.W, tk.E))
-
-        ttk.Button(mainframe, text="Calculate", command=self.calculate).grid(column=3, row=3, sticky=tk.W)
-
-        ttk.Label(mainframe, text="feet").grid(column=3, row=1, sticky=tk.W)
-        ttk.Label(mainframe, text="is equivalent to").grid(column=1, row=2, sticky=tk.E)
-        ttk.Label(mainframe, text="meters").grid(column=3, row=2, sticky=tk.W)
-
-        for child in mainframe.winfo_children():
-            child.grid_configure(padx=5, pady=5)
-
-        feet_entry.focus()
-        root.bind("<Return>", self.calculate)
-
-        root.mainloop()
-    def calculate(self,*args):
-        try:
-            value = float(self.feet.get())
-            self.meters.set(int(0.3048 * value * 10000.0 + 0.5)/10000.0)
-        except ValueError:
-            pass
 
 class musicgui:
-    playlists = None
-    selectedplaylist = None
+    playlists: List[str]
+    selectedplaylist: tk.StringVar
 
-    songqueue = None
+    songqueue: tk.StringVar
+
+    songlist = []
+    songlistvar: tk.StringVar
+
+    volume: tk.IntVar
+    lastvol = -1
+
+    output = [""]
 
     def __init__(self, playlistnames):
-        root = tk.Tk()
-        root.option_add('*tearOff', tk.FALSE)
-        root.wm_title("sPoTiFy")
-        root.wm_iconbitmap('shitify.ico')
+        self.root = ThemedTk(theme='black')
+        self.root.option_add('*tearOff', tk.FALSE)
+        self.root.wm_title("sPoTiFy")
+        self.root.wm_iconbitmap('shitify.ico')
 
         self.selectedplaylist = tk.StringVar()
         self.playlists = playlistnames
-        self.songqueue = tk.StringVar(value=[f"{i}: Temp" for i in range(1,101)])
+        self.songqueue = tk.StringVar(value=[])
+        self.volume = tk.IntVar(value=50)
+        self.songlistvar = tk.StringVar(value=self.songlist)
 
-        primaryframe = ttk.Frame(root)
+        primaryframe = ttk.Frame(self.root)
         primaryframe.grid()
 
         # QUEUE
@@ -81,9 +57,7 @@ class musicgui:
 
         # SONG SELECTION
         songlistlabelframe = ttk.Labelframe(primaryframe, text="Song list")
-        templistvalue = ['test', 'test2', 'test3']
-        songlist = tk.StringVar(value=list(reversed(templistvalue)))
-        queuelist = tk.Listbox(songlistlabelframe, height=15, listvariable=songlist)
+        queuelist = tk.Listbox(songlistlabelframe, height=15, listvariable=self.songqueue)
         songlistlabelframe.grid(column=2, row=0)
         queuelist.grid()
 
@@ -96,48 +70,71 @@ class musicgui:
         bottommiddleframe = ttk.Frame(primaryframe, relief='groove', padding=5)
         bottommiddleframe.grid(column=1, row=1,  sticky='ns')
 
-        pausebutton = ttk.Button(bottommiddleframe, text="PAUSE", command=self.pause)
+        pausebutton = ttk.Button(bottommiddleframe, text="PAUSE", command=self._pause)
         pausebutton.grid(row=0, column=0, columnspan=2, sticky='ew')
 
-        skipbutton = ttk.Button(bottommiddleframe, text="SKIP", command=self.skip)
-        skipbutton.grid(row=1)
+        skipbutton = ttk.Button(bottommiddleframe, text="SKIP", command=self._skip)
+        skipbutton.grid(row=1, sticky='w')
 
-        blacklistbutton = ttk.Button(bottommiddleframe, text="BLACKLIST", command=self.blacklist)
-        blacklistbutton.grid(row=1, column=1)
+        blacklistbutton = ttk.Button(bottommiddleframe, text="BLACKLIST", command=self._blacklist)
+        blacklistbutton.grid(row=1, column=1, sticky='e')
+
+        volumeslider = ttk.LabeledScale(bottommiddleframe, from_=0, to=100, variable=self.volume, compound='bottom')
+        volumeslider.scale.set(30)
+        volumeslider.scale.configure(command=self._volchange)
+        volumeslider.grid(row=2, columnspan=2, sticky='ew')
 
         # BOTTOM RIGHT PLAYLIST SELECT
         playlistselectframe = ttk.Frame(primaryframe, relief='groove', padding=3)
         playlistselectframe.grid(row=1, column=2, sticky='ns')
 
-        playlistselectcombobox = ttk.Combobox(playlistselectframe,
-                                              values=self.playlists,
-                                              textvariable=self.selectedplaylist)
-        playlistselectcombobox.grid(sticky='ewn')
+        self.playlistselectcombobox = ttk.Combobox(playlistselectframe, values=self.playlists, textvariable=self.selectedplaylist,
+                                     state='readonly')
+        self.playlistselectcombobox.set("No playlist selected.")
+        self.playlistselectcombobox.grid(sticky='ewn')
 
-        playlistselectbutton = ttk.Button(playlistselectframe, text="SELECT", command=self.chooseplaylist)
-        playlistselectbutton.grid(row=1)
+        self.playlistselectbutton = ttk.Button(playlistselectframe, text="SELECT", command=self._chooseplaylist)
+        self.playlistselectbutton.grid(row=1)
 
-        root.mainloop()
+        self._updatebasedonvalues()
+        self.root.mainloop()
 
-    def skip(self, *args):
-        print("skip")
-        pass
+    def _updatebasedonvalues(self):
+        if self.playlistselectcombobox.get() == "No playlist selected.":
+            self.playlistselectbutton.configure(state=tk.DISABLED)
+        else:
+            self.playlistselectbutton.configure(state=tk.NORMAL)
 
-    def pause(self, *args):
-        print("pause")
-        pass
+        self.root.after(50, self._updatebasedonvalues)
 
-    def blacklist(self, *args):
-        print("bl")
-        pass
+    def _skip(self, *args):
+        if not self.output[0]:
+            self.output = ["skip"]
+
+    def _pause(self, *args):
+        if not self.output[0]:
+            self.output = ["pause"]
+
+    def _blacklist(self, *args):
+        if not self.output[0]:
+            self.output = ["blacklist"]
+
+    def _chooseplaylist(self, *args):
+        print(self.selectedplaylist.get())
+
+    def _volchange(self, *args):
+        volume = self.volume.get()
+        if volume != self.lastvol:
+            self.output = ['volume', volume]
 
     def updateplaylists(self, playlists):
         self.playlists = playlists
 
-    def chooseplaylist(self, *args):
-        print(self.selectedplaylist.get())
-        pass
+    def addsong(self, song):
+        self.songlist.append(song)
 
 
-playlists = ('music', 'bangers')
-musicgui(playlists)
+
+ipl = ('music', 'bangers')
+x = musicgui(ipl)
+x.updateplaylists('calm')
