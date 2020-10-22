@@ -77,7 +77,12 @@ class Player:
         G.player = self
 
     def play(self):
-        self.musicplayer.play()
+        count = 0
+        while not self.musicplayer.is_playing() or count > 20:
+            print("Playing...")
+            self.musicplayer.play()
+            count += 1
+            time.sleep(0.5)
 
     def pause(self):
         self.musicplayer.pause()

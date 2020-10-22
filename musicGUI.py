@@ -1,5 +1,6 @@
 import tkinter as tk
 from tkinter import ttk
+from ttkthemes import ThemedTk
 
 
 class musicgui:
@@ -8,10 +9,13 @@ class musicgui:
 
     songqueue = None
 
+    volume: tk.IntVar
+
     output = ""
 
     def __init__(self, playlistnames):
-        root = tk.Tk()
+        root = ThemedTk(theme='black')
+        print(root.get_themes())
         root.option_add('*tearOff', tk.FALSE)
         root.wm_title("sPoTiFy")
         root.wm_iconbitmap('shitify.ico')
@@ -19,6 +23,7 @@ class musicgui:
         self.selectedplaylist = tk.StringVar()
         self.playlists = playlistnames
         self.songqueue = tk.StringVar(value=[f"{i}: Temp" for i in range(1,101)])
+        self.volume = tk.IntVar(value=50)
 
         primaryframe = ttk.Frame(root)
         primaryframe.grid()
@@ -66,10 +71,14 @@ class musicgui:
         pausebutton.grid(row=0, column=0, columnspan=2, sticky='ew')
 
         skipbutton = ttk.Button(bottommiddleframe, text="SKIP", command=self.skip)
-        skipbutton.grid(row=1)
+        skipbutton.grid(row=1, sticky='w')
 
         blacklistbutton = ttk.Button(bottommiddleframe, text="BLACKLIST", command=self.blacklist)
-        blacklistbutton.grid(row=1, column=1)
+        blacklistbutton.grid(row=1, column=1, sticky='e')
+
+        volumeslider = ttk.LabeledScale(bottommiddleframe, from_=0, to=100, variable=self.volume, compound='bottom')
+        volumeslider.scale.set(30)
+        volumeslider.grid(row=2, columnspan=2, sticky='ew')
 
         # BOTTOM RIGHT PLAYLIST SELECT
         playlistselectframe = ttk.Frame(primaryframe, relief='groove', padding=3)
