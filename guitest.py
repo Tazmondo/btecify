@@ -1,7 +1,42 @@
 import tkinter as tk
 from tkinter import ttk
-from ttkthemes import ThemedTk
 
+class tut1:
+    def __init__(self):
+        root = tk.Tk()
+        root.title("Feet to Meters")
+
+        mainframe = ttk.Frame(root, padding="3 3 12 12")
+        mainframe.grid(column=0, row=0, sticky=(tk.N, tk.W, tk.E, tk.S))
+        root.columnconfigure(0, weight=1)
+        root.rowconfigure(0, weight=1)
+
+        self.feet = tk.StringVar()
+        feet_entry = ttk.Entry(mainframe, width=7, textvariable=self.feet)
+        feet_entry.grid(column=2, row=1, sticky=(tk.W, tk.E))
+
+        self.meters = tk.StringVar()
+        ttk.Label(mainframe, textvariable=self.meters).grid(column=2, row=2, sticky=(tk.W, tk.E))
+
+        ttk.Button(mainframe, text="Calculate", command=self.calculate).grid(column=3, row=3, sticky=tk.W)
+
+        ttk.Label(mainframe, text="feet").grid(column=3, row=1, sticky=tk.W)
+        ttk.Label(mainframe, text="is equivalent to").grid(column=1, row=2, sticky=tk.E)
+        ttk.Label(mainframe, text="meters").grid(column=3, row=2, sticky=tk.W)
+
+        for child in mainframe.winfo_children():
+            child.grid_configure(padx=5, pady=5)
+
+        feet_entry.focus()
+        root.bind("<Return>", self.calculate)
+
+        root.mainloop()
+    def calculate(self,*args):
+        try:
+            value = float(self.feet.get())
+            self.meters.set(int(0.3048 * value * 10000.0 + 0.5)/10000.0)
+        except ValueError:
+            pass
 
 class musicgui:
     playlists = None
@@ -9,13 +44,8 @@ class musicgui:
 
     songqueue = None
 
-    volume: tk.IntVar
-
-    output = ""
-
     def __init__(self, playlistnames):
-        root = ThemedTk(theme='black')
-        print(root.get_themes())
+        root = tk.Tk()
         root.option_add('*tearOff', tk.FALSE)
         root.wm_title("sPoTiFy")
         root.wm_iconbitmap('shitify.ico')
@@ -23,7 +53,6 @@ class musicgui:
         self.selectedplaylist = tk.StringVar()
         self.playlists = playlistnames
         self.songqueue = tk.StringVar(value=[f"{i}: Temp" for i in range(1,101)])
-        self.volume = tk.IntVar(value=50)
 
         primaryframe = ttk.Frame(root)
         primaryframe.grid()
@@ -71,14 +100,10 @@ class musicgui:
         pausebutton.grid(row=0, column=0, columnspan=2, sticky='ew')
 
         skipbutton = ttk.Button(bottommiddleframe, text="SKIP", command=self.skip)
-        skipbutton.grid(row=1, sticky='w')
+        skipbutton.grid(row=1)
 
         blacklistbutton = ttk.Button(bottommiddleframe, text="BLACKLIST", command=self.blacklist)
-        blacklistbutton.grid(row=1, column=1, sticky='e')
-
-        volumeslider = ttk.LabeledScale(bottommiddleframe, from_=0, to=100, variable=self.volume, compound='bottom')
-        volumeslider.scale.set(30)
-        volumeslider.grid(row=2, columnspan=2, sticky='ew')
+        blacklistbutton.grid(row=1, column=1)
 
         # BOTTOM RIGHT PLAYLIST SELECT
         playlistselectframe = ttk.Frame(primaryframe, relief='groove', padding=3)
