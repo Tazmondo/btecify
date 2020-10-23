@@ -6,11 +6,12 @@ import threading
 import random
 import time
 from win10toast import ToastNotifier
+from sys import exit
 
 with open("programinfo.txt", "r") as file:
     lines = file.readlines()
-    APIKEY = lines[0]
-    PLAYLISTURL = lines[1]
+APIKEY = lines[0]
+PLAYLISTURL = lines[1]
 
 DATAFILENAME = "data.txt"
 SEEDURATIONKEYWORD = "NOTHING"
@@ -153,7 +154,8 @@ class Player:
                 if errcount > 4:
                     return False
             self.toaster.show_toast(title="NOW PLAYING", msg=nextsong.name, icon_path=ICON, duration=5, threaded=True, sound=False)
-            self.play()
+            if not self.play():
+                return False
             print("\n---NEXT SONG---")
             print(songdetails(self.song))
 
@@ -190,6 +192,9 @@ class Player:
         self.queue = playlist.getqueue()
 
 
+import musicGUI
+
+
 class GlobalVars:
     pass
 
@@ -223,20 +228,6 @@ def savedata(stuff):
         pickle.dump(stuff, file)
 
 
-def generateplaylist(playlist: Playlist):
-    playinglist = []
-    for song in playlist.songs:
-        if not song.watched and not song.blacklist:
-            playinglist.append(song)
-
-    if not playinglist:
-        for song in playlist.songs:
-            song.watched = False
-            playinglist = list(filter(lambda a: not a.blacklist, playlist.songs))
-    random.shuffle(playinglist)
-    return playinglist
-
-
 def searchsongname(targetlist: List[Song], targetvalue):
     targetlist = targetlist.copy()
     temp = []
@@ -250,30 +241,32 @@ def searchsongname(targetlist: List[Song], targetvalue):
 
 
 def main():
-    saveinfo = {}
+    saveinfo = {
+        'songs': [],
+        'playlists': {},
+        'options': {
+            'volume': 50
+        },
+    }
     with open(DATAFILENAME, "rb") as file:
         try:
-            saveinfo = pickle.load(file)
+            loaddata: dict = pickle.load(file)
+
+            def update(originaldict: dict, updatedict: dict):
+                for key, item in updatedict.items():
+                    if item is dict:
+                        update(originaldict[key], item)
+                    elif item:
+                        originaldict[key] = item
+
+            update(saveinfo, loaddata)
         except EOFError:
             print("Could not retrieve data.")
-            saveinfo = {
-                'songs': [],
-                'playlists': {},
-                'options': {},
-            }
     G.songlist = saveinfo['songs']
     inp = ""
-    while inp not in saveinfo['playlists']:
-        print(list(i for i in saveinfo['playlists'].keys()))
-        inp = input("Enter playlist name\n")
-
-    if inp != 'reset':
-        playlist = saveinfo['playlists'][inp]
-        playlist.updatelist()
-        savedata(saveinfo)
-        print(f"List updated. New length: {len(playlist.songs)}")
-
-    else:
+    playlist: Playlist = None
+    if not saveinfo['playlists']:
+        print("No playlists found, defaulting to music.")
         playlist = Playlist("music", PLAYLISTURL)
         saveinfo['playlists'][playlist.name] = playlist
         savedata(saveinfo)
@@ -287,32 +280,55 @@ def main():
     #     pass
     # player = G.player
     player = Player()
-    player.switchplaylist(playlist)
+    player.setvolume(saveinfo['options']['volume'])
     print("Created sound player.")
 
-    # inputthread = threading.Thread(target=infunc, daemon=False)
-    # inputthread.start()
-    print("Started input thread.")
+    guithread = threading.Thread(target=musicGUI.Musicgui, args=[list(saveinfo['playlists'].values()), saveinfo['options']])
+    guithread.start()
+    while musicGUI.G.musicgui is None:
+        pass
+    gui: musicGUI.Musicgui = musicGUI.G.musicgui
+    print("Started GUI!")
 
     first = True
-    while True:
-        while (not G.input and not player.finished()) and not first:
-            # Commented out because the input thread stops print from working in cmd prompt.
-            numberofthings = int(player.getpos()*10)
-            print("\b" * 12, end="")
-            print("["+"■"*numberofthings + "-"*(10-numberofthings)+"]", end="")
+
+    while playlist is None:
+        inp = gui.output
+        if not gui.output[0]:
             time.sleep(0.4)
-
+            continue
+        if inp[0] == "switchlist":
+            playlist = saveinfo['playlists'][inp[1]]
+            playlist.updatelist()
+            player.switchplaylist(playlist)
+        elif inp[0] == "EXIT":
+            print("Closed window...")
+            exit("exiting")
+        elif inp[0] != "":
+            gui.clearoutput()
+        else:
             pass
-        if player.finished() or first:
-            if not player.nextsong():
-                continue
-            else:
-                first = False
 
-        if G.input:
-            inp = G.input
-            inp = inp.split(" ")
+    savedata(saveinfo)
+    print("Selected first playlist.")
+    gui.clearoutput()
+    while True:
+        while (not gui.output[0] and not player.finished()) and not first:
+            gui.updatesonglist(G.songlist.copy())
+            gui.updatequeue(player.queue.copy())
+            gui.updatesong(player.song)
+            gui.updateprogressbar(int(player.getpos()*100))
+
+            time.sleep(0.1)
+            pass
+        if (player.finished() or first) and playlist:
+            while not player.nextsong():
+                print("SONG FAILED TO PLAY. MOVING ON.")
+
+            first = False
+
+        if gui.output[0]:
+            inp = gui.output
             command = inp[0]
             if command.lower() == "help":
                 print("---HELP---")
@@ -328,10 +344,12 @@ def main():
                 if not player.paused:
                     print("Pausing...")
                     player.pause()
+                    gui.pause()
 
                 else:
                     print("Unpausing...")
                     player.pause()
+                    gui.unpause()
 
             elif command.lower() == "getsongs" or command == 'gs':
                 for i in playlist.songs:
@@ -349,21 +367,28 @@ def main():
             elif command.lower() == "volume" or command == 'v':
                 if len(inp) > 1:
                     value = inp[1]
-                    if value.isdigit():
-                        value = int(value)
-                        player.setvolume(value)
-                        print(f"Setting volume to {value}%")
-                    else:
-                        print("Invalid volume. Must be between 0 and 100.")
+                    player.setvolume(value)
+                    saveinfo['options']['volume'] = value
+                    print(f"Setting volume to {value}%")
                 else:
                     print(f"Volume: {player.getvolume()}")
 
-            elif (command.lower() == "addlist" or command == 'al') and len(inp) ==3:
+            elif (command.lower() == "addlist" or command == 'al') and len(inp) > 1:
                 name = inp[1]
-                url = inp[2]
-                newplaylist = Playlist(name, url)
-                saveinfo[newplaylist.name] = newplaylist
-                print(f"Added playlist {newplaylist.name} with url {newplaylist.url}")
+                if name not in saveinfo['playlists']:
+                    if len(inp) == 3:
+                        url = inp[2]
+                        newplaylist = Playlist(name, url)
+                        saveinfo['playlists'][newplaylist.name] = newplaylist
+                        print(f"Added playlist {newplaylist.name} with url {newplaylist.url}")
+                        gui.addplaylist(newplaylist)
+                    elif len(inp) == 2:
+                        newplaylist = Playlist(name)
+                        saveinfo['playlists'][newplaylist.name] = newplaylist
+                        print(f"Added playlist {newplaylist.name} with no url.")
+                        gui.addplaylist(newplaylist)
+                else:
+                    print("Playlist already exists: "+name)
 
             elif (command == 'switchlist' or command == 'sl') and len(inp) > 1:
                 target = inp[1]
@@ -401,16 +426,16 @@ def main():
                     print(f"{player.song.name} has blacklist now set to: {player.song.blacklist}")
 
             elif command == "requeue":
-                newqueue = generateplaylist(playlist)
-                player.queue = newqueue
-                playinglist = newqueue
+                player.queue = playlist.getqueue()
 
-            elif command == "unwatch":
-                for song in playlist.songs:
-                    song.watched = False
-                newqueue = generateplaylist(playlist)
-                player.queue = newqueue
-                playinglist = newqueue
+            elif command == "unwatch" and len(inp) > 1:
+                targetplaylistname = inp[1]
+                if targetplaylistname in saveinfo['playlists']:
+                    targetplaylist = saveinfo['playlists'][targetplaylistname]
+                    targetplaylist.seensongs = []
+                    player.queue = playlist.getqueue()
+                else:
+                    print("Received unwatch but no valid playlist: "+targetplaylistname)
 
             elif command == "song" and len(inp) > 1:
                 song = " ".join(inp[1:])
@@ -429,7 +454,11 @@ def main():
                     targetpl = saveinfo['playlists'][value]
                     targetpl.updatelist(force=True)
 
-            G.input = ""
+            elif command == "EXIT":
+                print("Exiting...")
+                exit("Exited.")
+
+            gui.clearoutput()
         savedata(saveinfo)
 
 
