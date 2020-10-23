@@ -19,11 +19,7 @@ ICON = "shitify.ico"
 pafy.set_api_key(APIKEY)
 
 
-class GlobalVars:
-    pass
-G = GlobalVars()
-G.input = ""
-G.player = None
+
 
 
 class Song:
@@ -32,17 +28,14 @@ class Song:
     url = ""
     duration = ""
     author = ""
-    watched = False
     blacklist = False
 
-    def __init__(self, vidid: str, name: str, url: str, duration: str, author: str,
-                 watched: bool = False, blacklist: bool = False):
+    def __init__(self, vidid: str, name: str, url: str, duration: str, author: str, blacklist: bool = False):
         self.vidid = vidid
         self.name = name
         self.url = url
         self.duration = duration
         self.author = author
-        self.watched = watched
         self.blacklist = blacklist
 
 
@@ -50,11 +43,49 @@ class Playlist:
     url = ""
     songs: List[Song] = []
     name = ""
+    seensongs = []
 
-    def __init__(self, url: str, songs: List[Song], name: str):
+    def __init__(self,  name: str, url: str = "", songs: List[Song] = None, autoupdate: bool = True):
+        if songs is None:
+            songs = []
         self.url = url
         self.songs = songs
         self.name = name
+        if autoupdate:
+            self.updatelist()
+        self.seensongs = []
+
+    def getqueue(self):
+        queue = [i for i in self.songs if i not in self.seensongs]
+        random.shuffle(queue)
+        return queue
+
+    def updatelist(self, force=False):
+        if self.url:
+            playlistobject = pafy.get_playlist2(self.url)
+            playlistlength = len(playlistobject)
+
+            if playlistlength - 1 != len(self.songs) or force:
+                print("Songlist is updating.")
+                for video in playlistobject:
+                    if video.videoid not in map(lambda a: a.vidid, self.songs):
+                        if video.videoid not in map(lambda a: a.vidid, G.songlist):
+                            newsong = Song(video.videoid, video.title, video.watchv_url, video.duration, video.author,)
+                            G.songlist.append(newsong)
+                            self.songs.append(newsong)
+                            print(f"Downloading and adding {video.title}")
+
+                        else:
+                            correlatesong = G.songlist[list(map(lambda a: a.vidid, G.songlist)).index(video.videoid)]
+                            self.songs.append(correlatesong)
+                            print(f"Finding and adding {video.title}")
+
+                for song in self.songs:
+                    if song.vidid not in map(lambda a: a.videoid, playlistobject):
+                        self.songs.remove(song)
+                        print(f"Removing {song.name}")
+        else:
+            print("Local playlist - no update.")
 
 
 class Player:
@@ -63,16 +94,18 @@ class Player:
     instance: vlc.Instance
     musicplayer: vlc.MediaPlayer
     songlist: List[Song]
-    playinglist: List[Song]
+    queue: List[Song]
+    playlist: Playlist
     toaster: ToastNotifier
 
-    def __init__(self, songlist, playlist):
+    def __init__(self):
         self.instance: vlc.Instance = vlc.Instance()
         self.musicplayer = self.instance.media_player_new()
-        self.songlist = songlist
-        self.playinglist = playlist
         self.paused = False
         self.toaster = ToastNotifier()
+        self.playlist = None
+        self.songlist = None
+        self.queue = None
 
         G.player = self
 
@@ -83,7 +116,7 @@ class Player:
         self.musicplayer.pause()
         self.paused = not self.paused
 
-    def setsong(self, isong):
+    def setsong(self, isong: Song):
         try:
             self.song = isong
             pafyobj = pafy.new(self.song.url)
@@ -109,9 +142,9 @@ class Player:
 
     def nextsong(self):
         if self.song:
-            self.song.watched = True
-        if len(self.playinglist) > 0:
-            nextsong = self.playinglist.pop(0)
+            self.playlist.seensongs.append(self.song)
+        if len(self.queue) > 0:
+            nextsong = self.queue.pop(0)
             errcount = 0
             while not self.setsong(nextsong):
                 errcount += 1
@@ -125,14 +158,14 @@ class Player:
             print(songdetails(self.song))
 
         else:
-            for i in self.songlist:
-                i.watched = False
+            self.playlist.seensongs = []
+            self.queue = self.playlist.getqueue()
             playinglist = self.songlist
             random.shuffle(playinglist)
 
         return True
 
-    def manualsong(self, song):
+    def manualsong(self, song: Song):
         self.setsong(song)
         self.play()
         print("\n---NOW PLAYING---")
@@ -151,10 +184,20 @@ class Player:
     def getvolume(self):
         return self.musicplayer.audio_get_volume()
 
-    def switchplaylist(self, playlist):
+    def switchplaylist(self, playlist: Playlist):
+        self.playlist = playlist
         self.songlist = playlist.songs
-        self.playinglist = generateplaylist(playlist)
-        self.nextsong()
+        self.queue = playlist.getqueue()
+
+
+class GlobalVars:
+    pass
+
+
+G = GlobalVars()
+G.input = ""
+G.player = None
+G.songlist: List[Song] = []
 
 
 def infunc():
@@ -206,27 +249,6 @@ def searchsongname(targetlist: List[Song], targetvalue):
     return targetlist
 
 
-def urlstuff(songlist, url, force=False):
-    playlistobject = pafy.get_playlist2(url)
-    playlistlength = len(playlistobject)
-
-    if playlistlength - 1 != len(songlist) or force:
-        print("Songlist is updating.")
-        for video in playlistobject:
-            if video.videoid not in map(lambda a: a.vidid, songlist):
-                songlist.append(
-                    Song(video.videoid, video.title, video.watchv_url, video.duration, video.author, watched=False)
-                )
-                print(f"Adding {video.title}")
-
-        for song in songlist:
-            if song.vidid not in map(lambda a: a.videoid, playlistobject):
-                songlist.remove(song)
-                print(f"Removing {song.name}")
-
-    return songlist
-
-
 def main():
     saveinfo = {}
     with open(DATAFILENAME, "rb") as file:
@@ -234,36 +256,42 @@ def main():
             saveinfo = pickle.load(file)
         except EOFError:
             print("Could not retrieve data.")
-    saveinfo['reset'] = True
+            saveinfo = {
+                'songs': [],
+                'playlists': {},
+                'options': {},
+            }
+    G.songlist = saveinfo['songs']
     inp = ""
-    while inp not in saveinfo:
-        print(list(i for i in saveinfo.keys()))
+    while inp not in saveinfo['playlists']:
+        print(list(i for i in saveinfo['playlists'].keys()))
         inp = input("Enter playlist name\n")
 
     if inp != 'reset':
-        playlist = saveinfo[inp]
-        playlist.songs = urlstuff(playlist.songs, playlist.url)
+        playlist = saveinfo['playlists'][inp]
+        playlist.updatelist()
         savedata(saveinfo)
         print(f"List updated. New length: {len(playlist.songs)}")
 
     else:
-        playlist = Playlist(PLAYLISTURL, [], "music")
-        playlist.songs = urlstuff(playlist.songs, playlist.url)
-        saveinfo[playlist.name] = playlist
+        playlist = Playlist("music", PLAYLISTURL)
+        saveinfo['playlists'][playlist.name] = playlist
         savedata(saveinfo)
         print("List updated with default.")
 
     print("List is up to date!")
 
-    curplayerthread = threading.Thread(target=Player, daemon=False, args=[playlist.songs, generateplaylist(playlist)])
-    curplayerthread.start()
-    while G.player is None:
-        pass
-    player = G.player
+    # curplayerthread = threading.Thread(target=Player, daemon=False, args=[playlist.songs, generateplaylist(playlist)])
+    # curplayerthread.start()
+    # while G.player is None:
+    #     pass
+    # player = G.player
+    player = Player()
+    player.switchplaylist(playlist)
     print("Created sound player.")
 
-    inputthread = threading.Thread(target=infunc, daemon=False)
-    inputthread.start()
+    # inputthread = threading.Thread(target=infunc, daemon=False)
+    # inputthread.start()
     print("Started input thread.")
 
     first = True
@@ -272,7 +300,7 @@ def main():
             # Commented out because the input thread stops print from working in cmd prompt.
             numberofthings = int(player.getpos()*10)
             print("\b" * 12, end="")
-            print("["+"■"*numberofthings + "-"*(10-numberofthings)+"]",end="")
+            print("["+"■"*numberofthings + "-"*(10-numberofthings)+"]", end="")
             time.sleep(0.4)
 
             pass
@@ -281,7 +309,6 @@ def main():
                 continue
             else:
                 first = False
-
 
         if G.input:
             inp = G.input
@@ -313,8 +340,8 @@ def main():
 
             elif command.lower() == "getqueue" or command == 'gq':
                 output = ""
-                length = len(player.playinglist)
-                for i, v in enumerate(reversed(player.playinglist)):
+                length = len(player.queue)
+                for i, v in enumerate(reversed(player.queue)):
                     output += f'{length - i:>3}: {v.name}\n'
                 print(output, end="\n\n")
                 print(songdetails(player.song))
@@ -334,24 +361,24 @@ def main():
             elif (command.lower() == "addlist" or command == 'al') and len(inp) ==3:
                 name = inp[1]
                 url = inp[2]
-                newplaylist = Playlist(url, [], name)
+                newplaylist = Playlist(name, url)
                 saveinfo[newplaylist.name] = newplaylist
                 print(f"Added playlist {newplaylist.name} with url {newplaylist.url}")
 
             elif (command == 'switchlist' or command == 'sl') and len(inp) > 1:
                 target = inp[1]
-                if target not in saveinfo:
+                if target not in saveinfo['playlists']:
                     print("Invalid playlist.")
                 else:
-                    targetpl = saveinfo[target]
-                    targetpl.songs = urlstuff(targetpl.songs, targetpl.url)
+                    targetpl = saveinfo['playlists'][target]
+                    targetpl.updatelist()
                     playlist = targetpl
                     player.switchplaylist(targetpl)
 
             elif (command == 'removelist' or command == 'rl') and len(inp) > 1:
                 target = inp[1]
-                if target in saveinfo:
-                    del saveinfo[target]
+                if target in saveinfo['playlists']:
+                    del saveinfo['playlists'][target]
 
             elif command == "getcurrentsong" or command == 'gcs':
                 print("\n"+songdetails(player.song))
@@ -375,14 +402,14 @@ def main():
 
             elif command == "requeue":
                 newqueue = generateplaylist(playlist)
-                player.playinglist = newqueue
+                player.queue = newqueue
                 playinglist = newqueue
 
             elif command == "unwatch":
                 for song in playlist.songs:
                     song.watched = False
                 newqueue = generateplaylist(playlist)
-                player.playinglist = newqueue
+                player.queue = newqueue
                 playinglist = newqueue
 
             elif command == "song" and len(inp) > 1:
@@ -398,9 +425,9 @@ def main():
 
             elif command == "forceupdate" and len(inp) == 2:
                 value = inp[1]
-                if value in saveinfo:
-                    targetpl = saveinfo[value]
-                    targetpl.songs = urlstuff(targetpl.songs, targetpl.url, force=True)
+                if value in saveinfo['playlists']:
+                    targetpl = saveinfo['playlists'][value]
+                    targetpl.updatelist(force=True)
 
             G.input = ""
         savedata(saveinfo)
@@ -411,4 +438,33 @@ def temp():
         stuff = pickle.load(file)
     print(stuff)
 
-main()
+
+if __name__ == '__main__':
+    # import pickle
+    #
+    # with open("data.txt", "rb") as f:
+    #     stuff = pickle.load(f)
+    #
+    # print(stuff)
+    # newstuff = {}
+    # songlistt = []
+    # toaddlist = stuff['music'].songs
+    # toaddlist.extend(stuff['bangers'].songs)
+    # toaddlist.extend(stuff['calm'].songs)
+    # for x in toaddlist:
+    #     if x.name not in [i.name for i in songlistt]:
+    #         songlistt.append(Song(x.vidid, x.name, x.url, x.duration, x.author))
+    # #print([i.name for i in songlist])
+    # #print(len(songlist))
+    #
+    # playlists = {}
+    # playlists['music'] = Playlist(stuff['music'].name, stuff['music'].url, autoupdate=False)
+    # playlists['bangers'] = Playlist(stuff['bangers'].name, stuff['bangers'].url, autoupdate=False)
+    # playlists['calm'] = Playlist(stuff['calm'].name, stuff['calm'].url, autoupdate=False)
+    #
+    # newstuff['songs'] = songlistt
+    # newstuff['playlists'] = playlists
+    # newstuff['options'] = {}
+    # savedata(newstuff)
+
+    main()

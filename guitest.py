@@ -2,6 +2,14 @@ import tkinter as tk
 from tkinter import ttk
 from ttkthemes import ThemedTk
 from typing import List
+import threading
+from time import sleep
+import main
+
+
+class globalvars:
+    pass
+G = globalvars()
 
 
 class musicgui:
@@ -18,19 +26,19 @@ class musicgui:
 
     output = [""]
 
-    def __init__(self, playlistnames):
-        self.root = ThemedTk(theme='black')
-        self.root.option_add('*tearOff', tk.FALSE)
-        self.root.wm_title("sPoTiFy")
-        self.root.wm_iconbitmap('shitify.ico')
+    def __init__(self, playlists: List[main.Playlist]):
+        root = ThemedTk(theme='black')
+        root.option_add('*tearOff', tk.FALSE)
+        root.wm_title("sPoTiFy")
+        root.wm_iconbitmap('shitify.ico')
 
         self.selectedplaylist = tk.StringVar()
-        self.playlists = playlistnames
+        self.playlists = playlists
         self.songqueue = tk.StringVar(value=[])
         self.volume = tk.IntVar(value=50)
         self.songlistvar = tk.StringVar(value=self.songlist)
 
-        primaryframe = ttk.Frame(self.root)
+        primaryframe = ttk.Frame(root)
         primaryframe.grid()
 
         # QUEUE
@@ -43,10 +51,10 @@ class musicgui:
         playingframe = ttk.Frame(primaryframe, relief='groove', padding=5)
         playingframe.grid(column=1, row=0, sticky='')
 
-        songinfo = ttk.Label(playingframe, text="No song selected")
+        songinfo = ttk.Label(playingframe, text="No song playing")
         songinfo.grid(column=0, row=0)
 
-        songdesc = ttk.Label(playingframe, text="No song selected")
+        songdesc = ttk.Label(playingframe, text="")
         songdesc.grid(column=0, row=1)
 
         playingframeseperator = ttk.Separator(playingframe, orient=tk.HORIZONTAL)
@@ -68,7 +76,7 @@ class musicgui:
 
         # BOTTOM MIDDLE BUTTONS
         bottommiddleframe = ttk.Frame(primaryframe, relief='groove', padding=5)
-        bottommiddleframe.grid(column=1, row=1,  sticky='ns')
+        bottommiddleframe.grid(column=1, row=1, sticky='ns')
 
         pausebutton = ttk.Button(bottommiddleframe, text="PAUSE", command=self._pause)
         pausebutton.grid(row=0, column=0, columnspan=2, sticky='ew')
@@ -88,24 +96,36 @@ class musicgui:
         playlistselectframe = ttk.Frame(primaryframe, relief='groove', padding=3)
         playlistselectframe.grid(row=1, column=2, sticky='ns')
 
-        self.playlistselectcombobox = ttk.Combobox(playlistselectframe, values=self.playlists, textvariable=self.selectedplaylist,
-                                     state='readonly')
-        self.playlistselectcombobox.set("No playlist selected.")
-        self.playlistselectcombobox.grid(sticky='ewn')
+        playlistselectcombobox = ttk.Combobox(playlistselectframe, values=self.playlists,
+                                              textvariable=self.selectedplaylist,
+                                              state='readonly')
+        playlistselectcombobox.set("No playlist selected.")
+        playlistselectcombobox.grid(sticky='ewn')
 
-        self.playlistselectbutton = ttk.Button(playlistselectframe, text="SELECT", command=self._chooseplaylist)
-        self.playlistselectbutton.grid(row=1)
+        playlistselectbutton = ttk.Button(playlistselectframe, text="SELECT", command=self._chooseplaylist)
+        playlistselectbutton.grid(row=1)
 
-        self._updatebasedonvalues()
-        self.root.mainloop()
+        def _updatebasedonvalues():
+            if playlistselectcombobox.get() == "No playlist selected.":
+                playlistselectbutton.configure(state=tk.DISABLED)
+            else:
+                playlistselectbutton.configure(state=tk.NORMAL)
 
-    def _updatebasedonvalues(self):
-        if self.playlistselectcombobox.get() == "No playlist selected.":
-            self.playlistselectbutton.configure(state=tk.DISABLED)
-        else:
-            self.playlistselectbutton.configure(state=tk.NORMAL)
+            if songinfo['text'] == "No song playing":
+                pausebutton.configure(state=tk.DISABLED)
+                blacklistbutton.configure(state=tk.DISABLED)
+                skipbutton.configure(state=tk.DISABLED)
+            else:
+                pausebutton.configure(state=tk.NORMAL)
+                blacklistbutton.configure(state=tk.NORMAL)
+                skipbutton.configure(state=tk.NORMAL)
 
-        self.root.after(50, self._updatebasedonvalues)
+            root.after(100, _updatebasedonvalues)
+
+        _updatebasedonvalues()
+
+        G.musicgui = self
+        root.mainloop()
 
     def _skip(self, *args):
         if not self.output[0]:
@@ -123,18 +143,25 @@ class musicgui:
         print(self.selectedplaylist.get())
 
     def _volchange(self, *args):
-        volume = self.volume.get()
-        if volume != self.lastvol:
-            self.output = ['volume', volume]
+        if self.output[0] in ('volume', ''):
+            volume = self.volume.get()
+            if volume != self.lastvol:
+                self.output = ['volume', volume]
 
     def updateplaylists(self, playlists):
-        self.playlists = playlists
+        self.playlists.append(playlists)
 
     def addsong(self, song):
         self.songlist.append(song)
 
 
+G.musicgui: musicgui = None
 
-ipl = ('music', 'bangers')
-x = musicgui(ipl)
-x.updateplaylists('calm')
+if __name__ == '__main__':
+    ipl = ['music', 'bangers']
+    x = threading.Thread(target=musicgui, args=[ipl])
+    x.start()
+    while G.musicgui is None:
+        pass
+    gui = G.musicgui
+    gui.updateplaylists('calm')
