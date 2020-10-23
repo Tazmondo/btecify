@@ -49,6 +49,7 @@ class Musicgui:
         'progressbar': False,
         'playlistnotselected': True,
         'resetselectedsongs': False,
+        'playlistcomboboxupdate': False
 
     }
 
@@ -80,24 +81,26 @@ class Musicgui:
         root.configure(menu=menubar)
 
         menuplaylist = tk.Menu(menubar)
-        menuqueue = tk.Menu(menubar)
         menusong = tk.Menu(menubar)
 
         menubar.add_cascade(menu=menuplaylist, label="Playlist")
-        menubar.add_cascade(menu=menuqueue, label="Queue")
         menubar.add_cascade(menu=menusong, label="Song")
 
         menubar.add_separator()
 
-        menubar.add_command(label="Playlist: bangers")
+        menubar.add_command(label="Playlist: None")
+        menubarplaylistlabelindex = 3
 
         menuplaylist.add_command(label="New...", command=self._newplaylist)
         menuplaylist.add_command(label="Delete", command=self._deleteplaylist)
-        menuplaylist.add_command(label="Unwatch", command=self._unwatchplaylist)
+        menuplaylist.add_separator()
+        menuplaylist.add_command(label="Reset watched", command=self._unwatchplaylist)
+        menuplaylist.add_command(label="Requeue", command=self._requeue)
 
-        menuqueue.add_command(label="Requeue", command=self._requeue)
-
-        menusong.add_command(label="Add selected songs to selected playlist.", command=self._addsongtoplaylist)
+        menusong.add_command(label="New...", command=self._newsong)
+        menusong.add_separator()
+        menusong.add_command(label="Add selected songs to selected playlist", command=self._addsongtoplaylist)
+        menusong.add_command(label="Play selected song", command=self._playselectedsong)
 
         # PRIMARY FRAME
 
@@ -170,6 +173,7 @@ class Musicgui:
         playlistselectcombobox = ttk.Combobox(playlistselectframe, values=self.playlistnames,
                                               textvariable=self.selectedplaylist,
                                               state='readonly')
+        self.selectedplaylist.trace_add(mode="write", callback=self._playlistcomboboxvalueupdated)
         playlistselectcombobox.set("No playlist selected.")
         playlistselectcombobox.grid(sticky='ewn')
 
@@ -209,7 +213,7 @@ class Musicgui:
             if self.changes['paused']:
                 if self.playingsong is not None:
                     self.progressbarvar.set(value=self.progressbar)
-                    songinfo['text'] = (f"{self.playingsong.name[:25]}\n{self.playingsong.author}\n{self.playingsong.duration}\n" + f"-"*50)
+                    songinfo['text'] = (f"{self.playingsong.name[:50]}\n{self.playingsong.author}\n{self.playingsong.duration}\n" + f"-"*100)
                     if self.paused:
                         songdesc['text'] = "PAUSED"
                     else:
@@ -259,7 +263,7 @@ class Musicgui:
                     pausebutton.configure(state=tk.NORMAL)
                     removesongbutton.configure(state=tk.NORMAL)
                     skipbutton.configure(state=tk.NORMAL)
-                    songinfo['text'] = f"{self.selectedplaylist.get()}\n{self.playingsong.name[0:50]}\n{self.playingsong.author}\n{self.playingsong.duration}\n" + ("-")*75
+                    self._addchange('paused')
                 self._addchange('songinfo', False)
 
             if self.changes['playlistoptions']:
@@ -280,6 +284,16 @@ class Musicgui:
             if self.changes['progressbar']:
                 self.progressbarvar.set(value=self.progressbar)
                 self._addchange('progressbar', False)
+
+            if self.changes['playlistcomboboxupdate']:
+                playlist = self._getselectedplaylist()
+                label = "Playlist: "
+                if playlist:
+                    label += playlist.name
+                else:
+                    label += "None"
+                menubar.entryconfigure(menubarplaylistlabelindex, label=label)
+                self._addchange('playlistcomboboxupdate', False)
 
             root.after(300, _updatebasedonvalues)
 
@@ -308,6 +322,10 @@ class Musicgui:
     def _chooseplaylist(self, *args):
         if not self.output[0]:
             self._setoutput("switchlist", [self.selectedplaylist.get()])
+
+    def _playlistcomboboxvalueupdated(self, *args):
+        self._addchange('playlistcomboboxupdate')
+        pass
 
     def _deleteplaylist(self):
         self._setoutput("removelist", [self._getselectedplaylist()])
@@ -381,6 +399,15 @@ class Musicgui:
 
     def _getselectedplaylist(self):
         return self._getplaylistfromname(self.selectedplaylist.get())
+
+    def _playselectedsong(self):
+        if len(self.completeselectedsongs) == 1:
+            song = list(self.completeselectedsongs)[0]
+            self._setoutput("song", [song])
+
+    def _newsong(self):
+        url = sd.askstring("ADD A SONG","Enter the song url")
+        self._setoutput("createsong",[url])
 
     def clearoutput(self):
         self._setoutput("")

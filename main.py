@@ -36,6 +36,11 @@ class Song:
         self.author = author
         self.blacklist = blacklist
 
+    @staticmethod
+    def createsongfromurl(url: str):
+        song = pafy.new(url)
+        return Song(song.videoid, song.title, url, song.duration, song.author)
+
 
 class Playlist:
     url = ""
@@ -63,20 +68,23 @@ class Playlist:
             playlistobject = pafy.get_playlist2(self.url)
             playlistlength = len(playlistobject)
 
-            if playlistlength - 1 != len(self.songs) or force:
+            if playlistlength != len(self.songs) or force:
                 print("Songlist is updating.")
-                for video in playlistobject:
-                    if video.videoid not in map(lambda a: a.vidid, self.songs):
-                        if video.videoid not in map(lambda a: a.vidid, G.songlist):
-                            newsong = Song(video.videoid, video.title, video.watchv_url, video.duration, video.author,)
-                            G.songlist.append(newsong)
-                            self.songs.append(newsong)
-                            print(f"Downloading and adding {video.title}")
+                try:
+                    for video in playlistobject:
+                        if video.videoid not in map(lambda a: a.vidid, self.songs):
+                            if video.videoid not in map(lambda a: a.vidid, G.songlist):
+                                newsong = Song(video.videoid, video.title, video.watchv_url, video.duration, video.author,)
+                                G.songlist.append(newsong)
+                                self.songs.append(newsong)
+                                print(f"Downloading and adding {video.title}")
 
-                        else:
-                            correlatesong = G.songlist[list(map(lambda a: a.vidid, G.songlist)).index(video.videoid)]
-                            self.songs.append(correlatesong)
-                            print(f"Finding and adding {video.title}")
+                            else:
+                                correlatesong = G.songlist[list(map(lambda a: a.vidid, G.songlist)).index(video.videoid)]
+                                self.songs.append(correlatesong)
+                                print(f"Finding and adding {video.title}")
+                except pafy.util.GdataError as e:
+                    print("Couldn't update songlist:",e)
 
                 for song in self.songs:
                     if song.vidid not in map(lambda a: a.videoid, playlistobject):
@@ -103,7 +111,7 @@ class Player:
         self.toaster = ToastNotifier()
         self.playlist = None
         self.songlist = None
-        self.queue = None
+        self.queue = []
 
         G.player = self
 
@@ -139,20 +147,35 @@ class Player:
         return True
 
     def finished(self):
-        pos = self.musicplayer.get_position()
-        if pos >= 0.99:
+        state = self.musicplayer.get_state()
+        if state in [vlc.State.NothingSpecial, vlc.State.Stopped, vlc.State.Ended, vlc.State.Error]:
             return True
         return False
 
     def getpos(self):
         return self.musicplayer.get_position()
 
-    def nextsong(self):
-        if self.song and self.song in self.playlist.songs:
-            self.playlist.seensongs.append(self.song)
-        if len(self.queue) > 0:
-            nextsong = self.queue.pop(0)
-            errcount = 0
+    def nextsong(self, override=None):
+        print("nextsong called")
+
+        if override is None:
+            if self.song and self.song in self.playlist.songs and self.song not in self.queue:
+                self.playlist.seensongs.append(self.song)
+
+            if len(self.queue) > 0:
+                nextsong = self.queue.pop(0)
+            else:
+                self.playlist.seensongs = []
+                self.queue = self.playlist.getqueue()
+                playinglist = self.songlist
+                random.shuffle(playinglist)
+                nextsong = self.queue.pop(0)
+        else:
+            nextsong = override
+        errcount = 0
+        print("Attempting to set song.")
+        successful = False
+        while not successful:
             while not self.setsong(nextsong):
                 errcount += 1
                 print("Retrying...")
@@ -160,25 +183,18 @@ class Player:
                 if errcount > 4:
                     return False
             self.toaster.show_toast(title="NOW PLAYING", msg=nextsong.name, icon_path=ICON, duration=5, threaded=True, sound=False)
+            print("Attempting to play")
             if not self.play():
-                return False
-            print("\n---NEXT SONG---")
-            print(songdetails(self.song))
-
-        else:
-            self.playlist.seensongs = []
-            self.queue = self.playlist.getqueue()
-            playinglist = self.songlist
-            random.shuffle(playinglist)
-            self.nextsong()
+                print("Couldn't play? VLC State: ", self.musicplayer.get_state())
+                continue
+            successful = True
+        print("\n---NEXT SONG---")
+        print(songdetails(self.song))
 
         return True
 
     def manualsong(self, song: Song):
-        self.setsong(song)
-        self.play()
-        print("\n---NOW PLAYING---")
-        print(songdetails(song))
+        self.nextsong(override=song)
 
     def skip(self):
         self.nextsong()
@@ -258,7 +274,9 @@ def searchsongname(targetlist: List[Song], targetvalue: str):
 def main():
     saveinfo = {
         'songs': [],
-        'playlists': {},
+        'playlists': {
+            'empty': Playlist("empty")
+        },
         'options': {
             'volume': 50
         },
@@ -266,26 +284,16 @@ def main():
     with open(DATAFILENAME, "rb") as file:
         try:
             loaddata: dict = pickle.load(file)
-
-            def update(originaldict: dict, updatedict: dict):
-                for key, item in updatedict.items():
-                    if item is dict:
-                        update(originaldict[key], item)
-                    elif item:
-                        originaldict[key] = item
-
-            update(saveinfo, loaddata)
+            for key, value in saveinfo.items():
+                if type(value) is dict:
+                    value.update(loaddata[key])
+                    loaddata[key] = saveinfo[key]
+            saveinfo.update(loaddata)
         except EOFError:
             print("Could not retrieve data.")
     G.songlist = saveinfo['songs']
     inp = ""
-    playlist: Playlist = None
-    if not saveinfo['playlists']:
-        print("No playlists found, defaulting to music.")
-        playlist = Playlist("music", PLAYLISTURL)
-        saveinfo['playlists'][playlist.name] = playlist
-        savedata(saveinfo)
-        print("List updated with default.")
+    playlist: Playlist = saveinfo['playlists']['empty']
 
     print("List is up to date!")
 
@@ -304,8 +312,6 @@ def main():
         pass
     gui: musicGUI.Musicgui = musicGUI.G.musicgui
     print("Started GUI!")
-
-    first = True
 
     while playlist is None:
         inp = gui.output
@@ -327,22 +333,21 @@ def main():
     savedata(saveinfo)
     print("Selected first playlist.")
     gui.clearoutput()
-    while True:
-        while (not gui.output[0] and not player.finished()) and not first:
-            gui.updatesonglist(G.songlist.copy())
-            gui.updatequeue(player.queue.copy())
-            gui.updatesong(player.song)
-            gui.updateprogressbar(int(player.getpos()*100))
-            gui.updateplaylists(saveinfo['playlists'].values())
 
-            time.sleep(0.1)
-            pass
-        if (player.finished() or first) and playlist:
+    def updategui():
+        gui.updatesonglist(G.songlist.copy())
+        gui.updatequeue(player.queue.copy())
+        gui.updatesong(player.song)
+        gui.updateprogressbar(int(player.getpos() * 100))
+        gui.updateplaylists(saveinfo['playlists'].values())
+
+    first = True
+    updategui()
+    print(player.finished())
+    while True:
+        if player.finished() and playlist and len(player.queue) > 0:
             while not player.nextsong():
                 print("SONG FAILED TO PLAY. MOVING ON.")
-
-            print("first is false")
-            first = False
 
         if gui.output[0]:
             inp = gui.output
@@ -442,15 +447,21 @@ def main():
                     print("Received unwatch but no valid playlist: "+targetplaylistname)
 
             elif command == "song" and len(inp) > 1:
-                song = " ".join(inp[1:])
-                matches = searchsongname(playlist.songs.copy(), song)
-                if not matches:
-                    print("Song not found.")
-                if len(matches) > 1:
-                    print("Be more specific. Found: ")
-                    print(list(k.name for k in matches))
+                song = inp[1]
+                print(song, type(song))
+                if type(song) is str:
+                    matches = searchsongname(playlist.songs.copy(), song)
+                    if not matches:
+                        print("Song not found.")
+                    if len(matches) > 1:
+                        print("Be more specific. Found: ")
+                        print(list(k.name for k in matches))
+                    else:
+                        player.manualsong(matches[0])
+                elif type(song) is Song:
+                    player.manualsong(song)
                 else:
-                    player.manualsong(matches[0])
+                    print("Couldn't get manual song type?")
 
             elif command == "forceupdate" and len(inp) == 2:
                 value = inp[1]
@@ -464,13 +475,18 @@ def main():
                 for song in songs:
                     playlist.songs.append(song)
 
+            elif command == "createsong" and len(inp) == 2:
+                url = inp[1]
+                G.songlist.append(Song.createsongfromurl(url))
 
             elif command == "EXIT":
                 print("Exiting...")
                 exit("Exited.")
 
             gui.clearoutput()
+        updategui()
         savedata(saveinfo)
+        time.sleep(0.1)
 
 
 def temp():
