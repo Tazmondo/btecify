@@ -111,7 +111,16 @@ class Player:
         G.player = self
 
     def play(self):
+        count = 0
         self.musicplayer.play()
+        while not self.musicplayer.is_playing():
+            print("Playing...")
+            self.musicplayer.play()
+            time.sleep(0.5)
+            count += 1
+            if count > 20:
+                return False
+        return True
 
     def pause(self):
         self.musicplayer.pause()
@@ -142,7 +151,7 @@ class Player:
         return self.musicplayer.get_position()
 
     def nextsong(self):
-        if self.song:
+        if self.song and self.song in self.playlist.songs:
             self.playlist.seensongs.append(self.song)
         if len(self.queue) > 0:
             nextsong = self.queue.pop(0)
@@ -164,6 +173,7 @@ class Player:
             self.queue = self.playlist.getqueue()
             playinglist = self.songlist
             random.shuffle(playinglist)
+            self.nextsong()
 
         return True
 
@@ -228,16 +238,24 @@ def savedata(stuff):
         pickle.dump(stuff, file)
 
 
-def searchsongname(targetlist: List[Song], targetvalue):
+# def searchsongname(targetlist: List[Song], targetvalue: str):
+#     targetlist = targetlist.copy()
+#     temp = []
+#     for i in range(0, len(targetvalue)):
+#         for song in targetlist:
+#             if song.name[i].lower() == targetvalue[i].lower():
+#                 temp.append(song)
+#         targetlist = temp.copy()
+#         temp = []
+#     return targetlist
+
+def searchsongname(targetlist: List[Song], targetvalue: str):
     targetlist = targetlist.copy()
-    temp = []
-    for i in range(0, len(targetvalue)):
-        for song in targetlist:
-            if song.name[i] == targetvalue[i]:
-                temp.append(song)
-        targetlist = temp.copy()
-        temp = []
-    return targetlist
+    matches = []
+    for target in targetlist:
+        if target.name.lower().find(targetvalue) != -1:
+            matches.append(target)
+    return matches
 
 
 def main():
@@ -318,6 +336,7 @@ def main():
             gui.updatequeue(player.queue.copy())
             gui.updatesong(player.song)
             gui.updateprogressbar(int(player.getpos()*100))
+            gui.updateplaylists(saveinfo['playlists'].values())
 
             time.sleep(0.1)
             pass
@@ -325,6 +344,7 @@ def main():
             while not player.nextsong():
                 print("SONG FAILED TO PLAY. MOVING ON.")
 
+            print("first is false")
             first = False
 
         if gui.output[0]:
@@ -351,19 +371,6 @@ def main():
                     player.pause()
                     gui.unpause()
 
-            elif command.lower() == "getsongs" or command == 'gs':
-                for i in playlist.songs:
-                    print(f'{i.name:>100} {i.watched:>5} {i.blacklist}')
-                print(songdetails(player.song))
-
-            elif command.lower() == "getqueue" or command == 'gq':
-                output = ""
-                length = len(player.queue)
-                for i, v in enumerate(reversed(player.queue)):
-                    output += f'{length - i:>3}: {v.name}\n'
-                print(output, end="\n\n")
-                print(songdetails(player.song))
-
             elif command.lower() == "volume" or command == 'v':
                 if len(inp) > 1:
                     value = inp[1]
@@ -381,12 +388,10 @@ def main():
                         newplaylist = Playlist(name, url)
                         saveinfo['playlists'][newplaylist.name] = newplaylist
                         print(f"Added playlist {newplaylist.name} with url {newplaylist.url}")
-                        gui.addplaylist(newplaylist)
                     elif len(inp) == 2:
                         newplaylist = Playlist(name)
                         saveinfo['playlists'][newplaylist.name] = newplaylist
                         print(f"Added playlist {newplaylist.name} with no url.")
-                        gui.addplaylist(newplaylist)
                 else:
                     print("Playlist already exists: "+name)
 
@@ -402,8 +407,10 @@ def main():
 
             elif (command == 'removelist' or command == 'rl') and len(inp) > 1:
                 target = inp[1]
-                if target in saveinfo['playlists']:
-                    del saveinfo['playlists'][target]
+                print(target)
+                if target.name in saveinfo['playlists']:
+                    print("Deleting", target)
+                    del saveinfo['playlists'][target.name]
 
             elif command == "getcurrentsong" or command == 'gcs':
                 print("\n"+songdetails(player.song))
@@ -453,6 +460,13 @@ def main():
                 if value in saveinfo['playlists']:
                     targetpl = saveinfo['playlists'][value]
                     targetpl.updatelist(force=True)
+
+            elif command == "addsong" and len(inp) >=2:
+                playlist = inp[1]
+                songs = inp[2:] or [player.song]
+                for song in songs:
+                    playlist.songs.append(song)
+
 
             elif command == "EXIT":
                 print("Exiting...")
