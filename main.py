@@ -15,12 +15,9 @@ PLAYLISTURL = lines[1]
 
 DATAFILENAME = "data.txt"
 SEEDURATIONKEYWORD = "NOTHING"
-ICON = "shitify.ico"
+ICON = "btecify.ico"
 
 pafy.set_api_key(APIKEY)
-
-
-
 
 
 class Song:

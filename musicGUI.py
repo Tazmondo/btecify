@@ -3,8 +3,8 @@ from tkinter import ttk
 from tkinter import simpledialog as sd
 from ttkthemes import ThemedTk
 from typing import List
-import threading
-from time import sleep
+#import threading
+#from time import sleep
 import main
 from sys import exit
 
@@ -56,7 +56,7 @@ class Musicgui:
         root = ThemedTk(theme='black')
         root.option_add('*tearOff', tk.FALSE)
         root.wm_title("sPoTiFy")
-        root.wm_iconbitmap('shitify.ico')
+        root.wm_iconbitmap('btecify.ico')
         root.resizable(width=False, height=False)
 
         def _onclose():
@@ -159,9 +159,9 @@ class Musicgui:
         songlist['yscrollcommand'] = songlistscrollbar.set
 
         # BOTTOM LEFT LOGO
-        shitifyiconimage = tk.PhotoImage(file="shitify64.png")
-        shitifyiconlabel = ttk.Label(primaryframe, image=shitifyiconimage)
-        shitifyiconlabel.grid(column=0, row=1, sticky='ewns')
+        btecifyiconimage = tk.PhotoImage(file="btecify64.png")
+        btecifyiconlabel = ttk.Label(primaryframe, image=btecifyiconimage)
+        btecifyiconlabel.grid(column=0, row=1, sticky='ewns')
 
         # BOTTOM LEFT PLAYLIST SELECT
         playlistselectframe = ttk.LabelFrame(primaryframe, text="Playlist select", relief='groove', padding=3)
