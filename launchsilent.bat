@@ -1,0 +1,1 @@
+"C:\Users\Tazmondo\Desktop\Programming projects\Projects\Music\venv\Scripts\pythonw.exe" "C:\Users\Tazmondo\Desktop\Programming projects\Projects\Music\main.py"
