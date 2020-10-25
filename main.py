@@ -165,10 +165,12 @@ class Player:
             if len(self.queue) > 0:
                 nextsong = self.queue.pop(0)
             else:
+                print("yes")
                 self.playlist.seensongs = []
                 self.queue = self.playlist.getqueue()
                 playinglist = self.songlist
                 random.shuffle(playinglist)
+                print(self.queue)
                 nextsong = self.queue.pop(0)
         else:
             nextsong = override
@@ -291,8 +293,9 @@ def main():
             saveinfo.update(loaddata)
         except EOFError:
             print("Could not retrieve data.")
-    G.songlist = saveinfo['songs']
+    G.songlist = sorted(saveinfo['songs'], key=lambda a: a.name.lower())
     inp = ""
+    saveinfo['playlists']['empty'] = Playlist("empty")
     playlist: Playlist = saveinfo['playlists']['empty']
 
     print("List is up to date!")
@@ -345,7 +348,7 @@ def main():
     updategui()
     print(player.finished())
     while True:
-        if player.finished() and playlist and len(player.queue) > 0:
+        if player.finished() and playlist and len(playlist.songs) > 0:
             while not player.nextsong():
                 print("SONG FAILED TO PLAY. MOVING ON.")
 
@@ -417,7 +420,7 @@ def main():
             elif command == "getcurrentsong" or command == 'gcs':
                 print("\n"+songdetails(player.song))
 
-            elif command == "blacklist" or command == 'bl':
+            elif command == "oldblacklist" or command == 'bl':  # Not in use anymore...
                 if len(inp) > 1:
                     value = " ".join(inp[1:])
                     matches = searchsongname(playlist.songs.copy(), value)
@@ -433,6 +436,9 @@ def main():
                 else:
                     player.song.blacklist = not player.song.blacklist
                     print(f"{player.song.name} has blacklist now set to: {player.song.blacklist}")
+
+            elif command == "blacklist":
+                pass
 
             elif command == "requeue":
                 player.queue = playlist.getqueue()
@@ -478,6 +484,7 @@ def main():
             elif command == "createsong" and len(inp) == 2:
                 url = inp[1]
                 G.songlist.append(Song.createsongfromurl(url))
+                G.songlist = sorted(G.songlist, key=lambda a: a.name.lower())
 
             elif command == "EXIT":
                 print("Exiting...")

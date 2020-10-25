@@ -60,6 +60,9 @@ class Musicgui:
         root.wm_iconbitmap('btecify.ico')
         root.resizable(width=False, height=False)
 
+        root.wm_iconify()
+        root.wm_deiconify()
+
         def _onclose():
             self.output = ["EXIT"]
             exit("Closing GUI thread.")
@@ -146,7 +149,9 @@ class Musicgui:
                               bg="#282828", disabledforeground="gray80", fg="white",
                               activestyle='dotbox', selectbackground="#282828", selectforeground="red2")
         songlistscrollbar = ttk.Scrollbar(songlistlabelframe, orient=tk.VERTICAL, command=songlist.yview)
-        songsearchentry = ttk.Entry(songlistlabelframe, validate="all", validatecommand=self._songlistsearchchanged,
+
+        _songlistsearchchangedcommand = root._register(self._songlistsearchchanged)
+        songsearchentry = ttk.Entry(songlistlabelframe, validate="all", validatecommand=(_songlistsearchchangedcommand, '%V'),
                                    textvariable=self.songsearchqueryvar,)
 
         self.completeselectedsongs = set()
@@ -213,7 +218,7 @@ class Musicgui:
             if self.changes['paused']:
                 if self.playingsong is not None:
                     self.progressbarvar.set(value=self.progressbar)
-                    songinfo['text'] = (f"{self.playingsong.name[:50]}\n{self.playingsong.author}\n{self.playingsong.duration}\n" + f"-"*100)
+                    songinfo['text'] = (f"{self.selectedplaylist.get()}\n{self.playingsong.name[:50]}\n{self.playingsong.author}\n{self.playingsong.duration}\n" + f"-"*100)
                     if self.paused:
                         songdesc['text'] = "PAUSED"
                     else:
@@ -357,13 +362,16 @@ class Musicgui:
     def _unwatchplaylist(self):
         self._setoutput("unwatch", [self.selectedplaylist.get()])
 
-    def _songlistsearchchanged(self, *args):
+    def _songlistsearchchanged(self, why=None):
+        if why == 'focusin':
+            self.songsearchqueryvar.set("")
+            return self._songlistsearchchanged()
         query = self.songsearchqueryvar.get()
         if not query:
             self.displaysonglistnew = self.songlist
-            return True
-        matches = searchfunc(self.songlist, query)
-        self.displaysonglistnew = matches
+        else:
+            matches = searchfunc(self.songlist, query)
+            self.displaysonglistnew = matches
         self._addchange('songlist')
         return True
 
