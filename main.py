@@ -43,62 +43,66 @@ class Song:
 
 class Playlist:
     url = ""
-    songs: list[Song] = []
     name = ""
-    seensongs = []
-    ytplaylist: set[Song]
-    addedsongs: set[Song]
+    seensongs: set[Song] = set()
+    ytplaylist: set[Song] = set()
+    addedsongs: set[Song] = set()
+    removedsongs: set[Song] = set()
 
-    def __init__(self,  name: str, url: str = "", songs: list[Song] = None, autoupdate: bool = True):
+    def __init__(self,  name: str, url: str = "", songs: list[Song] = None, addedsongs: set[Song] = None,
+                 removedsongs: set[Song] = None, autoupdate: bool = True):
         if songs is None:
             songs = []
+        if addedsongs is None:
+            addedsongs = set()
+        if removedsongs is None:
+            removedsongs = set()
         self.url = url
-        self.songs = songs
+        self.ytplaylist = set(songs)
+        self.addedsongs = addedsongs
+        self.removedsongs = removedsongs
         self.name = name
         if autoupdate:
-            self.updatelist()
-        self.seensongs = []
+            self.refreshplaylistfromyoutube()
+        self.seensongs = set()
 
     def getqueue(self):
-        queue = [i for i in self.songs if i not in self.seensongs]
+        queue = [i for i in self.getsongs() if i not in self.seensongs]
         random.shuffle(queue)
         return queue
 
-    def updatelist(self, force=False):
+    def getsongs(self):
+        return (self.ytplaylist - self.removedsongs) | self.addedsongs
+
+    def refreshplaylistfromyoutube(self, force=False):
         if self.url:
             playlistobject = pafy.get_playlist2(self.url)
             playlistlength = len(playlistobject)
 
-            if playlistlength != len(self.songs) or force:
+            if playlistlength != len(self.ytplaylist) or force:
                 print("Songlist is updating.")
                 try:
                     for video in playlistobject:
-                        if video.videoid not in map(lambda a: a.vidid, self.songs):
+                        if video.videoid not in map(lambda a: a.vidid, self.ytplaylist):
                             if video.videoid not in map(lambda a: a.vidid, G.songlist):
                                 newsong = Song(video.videoid, video.title, video.watchv_url, video.duration, video.author,)
-                                G.songlist.append(newsong)
-                                self.songs.append(newsong)
+                                G.songlist.add(newsong)
+                                self.ytplaylist.add(newsong)
                                 print(f"Downloading and adding {video.title}")
 
                             else:
                                 correlatesong = G.songlist[list(map(lambda a: a.vidid, G.songlist)).index(video.videoid)]
-                                self.songs.append(correlatesong)
+                                self.ytplaylist.add(correlatesong)
                                 print(f"Finding and adding {video.title}")
                 except pafy.util.GdataError as e:
-                    print("Couldn't update songlist:",e)
+                    print("Couldn't update songlist:", e)
 
-                for song in self.songs:
-                    if song.vidid not in map(lambda a: a.videoid, playlistobject):
-                        self.songs.remove(song)
-                        print(f"Removing {song.name}")
         else:
             print("Local playlist - no update.")
 
     def removesong(self, song: Song):
-        if song in self.songs:
-            self.songs.remove(song)
-            return True
-        return False
+        if song in self.addedsongs:
+            self.addedsongs.remove(song)
 
 
 class Player:
@@ -166,14 +170,14 @@ class Player:
         print("nextsong called")
 
         if override is None:
-            if self.song and self.song in self.playlist.songs and self.song not in self.queue:
-                self.playlist.seensongs.append(self.song)
+            if self.song and self.song in self.playlist.getsongs() and self.song not in self.queue:
+                self.playlist.seensongs.add(self.song)
 
             if len(self.queue) > 0:
                 nextsong = self.queue.pop(0)
             else:
                 print("yes")
-                self.playlist.seensongs = []
+                self.playlist.seensongs = set()
                 self.queue = self.playlist.getqueue()
                 playinglist = self.songlist
                 random.shuffle(playinglist)
@@ -220,7 +224,7 @@ class Player:
 
     def switchplaylist(self, playlist: Playlist):
         self.playlist = playlist
-        self.songlist = playlist.songs
+        self.songlist = playlist.getsongs()
         self.queue = playlist.getqueue()
 
 
@@ -234,7 +238,7 @@ class GlobalVars:
 G = GlobalVars()
 G.input = ""
 G.player = None
-G.songlist: list[Song] = []
+G.songlist: set[Song] = set()
 
 
 def infunc():
@@ -282,7 +286,7 @@ def searchsongname(targetlist: list[Song], targetvalue: str):
 
 def main():
     saveinfo = {
-        'songs': [],
+        'songs': set(),
         'playlists': {
             'empty': Playlist("empty")
         },
@@ -293,10 +297,6 @@ def main():
     with open(DATAFILENAME, "rb") as file:
         try:
             loaddata: dict = pickle.load(file)
-            for key, value in saveinfo.items():
-                if type(value) is dict:
-                    value.update(loaddata[key])
-                    loaddata[key] = saveinfo[key]
             saveinfo.update(loaddata)
         except EOFError:
             print("Could not retrieve data.")
@@ -330,7 +330,7 @@ def main():
             continue
         if inp[0] == "switchlist":
             playlist = saveinfo['playlists'][inp[1]]
-            playlist.updatelist()
+            playlist.refreshplaylistfromyoutube()
             player.switchplaylist(playlist)
         elif inp[0] == "EXIT":
             print("Closed window...")
@@ -355,7 +355,7 @@ def main():
     updategui()
     print(player.finished())
     while True:
-        if player.finished() and playlist and len(playlist.songs) > 0:
+        if player.finished() and playlist and len(playlist.getsongs()) > 0:
             while not player.nextsong():
                 print("SONG FAILED TO PLAY. MOVING ON.")
 
@@ -413,7 +413,7 @@ def main():
                     print("Invalid playlist.")
                 else:
                     targetpl = saveinfo['playlists'][target]
-                    targetpl.updatelist()
+                    targetpl.refreshplaylistfromyoutube()
                     playlist = targetpl
                     player.switchplaylist(targetpl)
 
@@ -430,7 +430,7 @@ def main():
             elif command == "oldblacklist" or command == 'bl':  # Not in use anymore...
                 if len(inp) > 1:
                     value = " ".join(inp[1:])
-                    matches = searchsongname(playlist.songs.copy(), value)
+                    matches = searchsongname(playlist.getsongs().copy(), value)
 
                     if len(matches) > 1:
                         print("Be more specific. Found: ")
@@ -459,7 +459,7 @@ def main():
                 targetplaylistname = inp[1]
                 if targetplaylistname in saveinfo['playlists']:
                     targetplaylist = saveinfo['playlists'][targetplaylistname]
-                    targetplaylist.seensongs = []
+                    targetplaylist.seensongs = set()
                     player.queue = playlist.getqueue()
                 else:
                     print("Received unwatch but no valid playlist: "+targetplaylistname)
@@ -468,7 +468,7 @@ def main():
                 song = inp[1]
                 print(song, type(song))
                 if type(song) is str:
-                    matches = searchsongname(playlist.songs.copy(), song)
+                    matches = searchsongname(playlist.getsongs().copy(), song)
                     if not matches:
                         print("Song not found.")
                     if len(matches) > 1:
@@ -485,13 +485,13 @@ def main():
                 value = inp[1]
                 if value in saveinfo['playlists']:
                     targetpl = saveinfo['playlists'][value]
-                    targetpl.updatelist(force=True)
+                    targetpl.refreshplaylistfromyoutube(force=True)
 
             elif command == "addsong" and len(inp) >=2:
                 playlist = inp[1]
                 songs = inp[2:] or [player.song]
                 for song in songs:
-                    playlist.songs.append(song)
+                    playlist.getsongs().append(song)
 
             elif command == "createsong" and len(inp) == 2:
                 url = inp[1]
