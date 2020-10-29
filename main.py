@@ -46,8 +46,8 @@ class Playlist:
     name = ""
     seensongs: set[Song] = set()
     ytplaylist: set[Song] = set()
-    addedsongs: set[Song] = set()
     removedsongs: set[Song] = set()
+    addedsongs: set[Song] = set()
 
     def __init__(self,  name: str, url: str = "", songs: list[Song] = None, addedsongs: set[Song] = None,
                  removedsongs: set[Song] = None, autoupdate: bool = True):
