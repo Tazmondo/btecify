@@ -1,7 +1,6 @@
 import vlc
 import pafy
 import pickle
-from typing import List
 import threading
 import random
 import time
@@ -44,11 +43,13 @@ class Song:
 
 class Playlist:
     url = ""
-    songs: List[Song] = []
+    songs: list[Song] = []
     name = ""
     seensongs = []
+    ytplaylist: set[Song]
+    addedsongs: set[Song]
 
-    def __init__(self,  name: str, url: str = "", songs: List[Song] = None, autoupdate: bool = True):
+    def __init__(self,  name: str, url: str = "", songs: list[Song] = None, autoupdate: bool = True):
         if songs is None:
             songs = []
         self.url = url
@@ -93,14 +94,20 @@ class Playlist:
         else:
             print("Local playlist - no update.")
 
+    def removesong(self, song: Song):
+        if song in self.songs:
+            self.songs.remove(song)
+            return True
+        return False
+
 
 class Player:
     song: Song = None
     paused: bool
     instance: vlc.Instance
     musicplayer: vlc.MediaPlayer
-    songlist: List[Song]
-    queue: List[Song]
+    songlist: list[Song]
+    queue: list[Song]
     playlist: Playlist
     toaster: ToastNotifier
 
@@ -123,7 +130,7 @@ class Player:
             self.musicplayer.play()
             time.sleep(0.5)
             count += 1
-            if count > 20:
+            if count > 10:
                 return False
         return True
 
@@ -227,7 +234,7 @@ class GlobalVars:
 G = GlobalVars()
 G.input = ""
 G.player = None
-G.songlist: List[Song] = []
+G.songlist: list[Song] = []
 
 
 def infunc():
@@ -264,7 +271,7 @@ def savedata(stuff):
 #         temp = []
 #     return targetlist
 
-def searchsongname(targetlist: List[Song], targetvalue: str):
+def searchsongname(targetlist: list[Song], targetvalue: str):
     targetlist = targetlist.copy()
     matches = []
     for target in targetlist:
@@ -437,7 +444,12 @@ def main():
                     player.song.blacklist = not player.song.blacklist
                     print(f"{player.song.name} has blacklist now set to: {player.song.blacklist}")
 
-            elif command == "blacklist":
+            elif command == "blacklist" and len(inp) == 2:
+                selectedsongs = inp[1]
+
+                if len(selectedsongs) != 0:
+                    for song in selectedsongs:
+                        playlist.removesong(song)
                 pass
 
             elif command == "requeue":

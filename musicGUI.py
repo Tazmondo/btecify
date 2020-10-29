@@ -2,7 +2,6 @@ import tkinter as tk
 from tkinter import ttk
 from tkinter import simpledialog as sd
 from ttkthemes import ThemedTk
-from typing import List
 #import threading
 #from time import sleep
 import main
@@ -16,8 +15,8 @@ G = globalvars()
 
 
 class Musicgui:
-    playlists: List[main.Playlist]
-    playlistnames: List[str]
+    playlists: list[main.Playlist]
+    playlistnames: list[str]
     selectedplaylist: tk.StringVar
 
     songqueuevar: tk.StringVar
@@ -33,10 +32,10 @@ class Musicgui:
 
     output = [""]
     playingsong: main.Song = None
-    songqueue: List[main.Song] = []
-    songlist: List[main.Song] = []
-    displaysonglist: List[main.Song] = []
-    displaysonglistnew: List[main.Song] = []
+    songqueue: list[main.Song] = []
+    songlist: list[main.Song] = []
+    displaysonglist: list[main.Song] = []
+    displaysonglistnew: list[main.Song] = []
     progressbar: int = 0
     paused: bool = False
 
@@ -53,7 +52,7 @@ class Musicgui:
 
     }
 
-    def __init__(self, playlists: List[main.Playlist], defaults: dict):
+    def __init__(self, playlists: list[main.Playlist], defaults: dict):
         root = ThemedTk(theme='black')
         root.option_add('*tearOff', tk.FALSE)
         root.wm_title("sPoTiFy")
@@ -115,7 +114,7 @@ class Musicgui:
         queuelabelframe.grid(column=0, row=0, columnspan=2, sticky='nswe')
 
         queuelist = tk.Listbox(queuelabelframe, height=15, listvariable=self.songqueuevar, state="disabled",
-                               bg="#282828", disabledforeground="gray80", fg="white")
+                               bg="#282828", disabledforeground="gray80", fg="white", width=50)
         queuelistscrollbar = ttk.Scrollbar(queuelabelframe, orient=tk.VERTICAL, command=queuelist.yview)
 
         queuelist.grid(column=0, row=0, sticky='nswe')
@@ -123,7 +122,7 @@ class Musicgui:
 
         queuelist['yscrollcommand'] = queuelistscrollbar.set
 
-        # DEFINING THE PLAYING FRAME
+        # PLAYER INFORMATION
         playingframe = ttk.Frame(primaryframe, relief='groove', padding=5)
         playingframe.grid(column=2, row=0, sticky='ew')
 
@@ -147,7 +146,8 @@ class Musicgui:
 
         songlist = tk.Listbox(songlistlabelframe, height=15, listvariable=self.songlistvar, selectmode=tk.MULTIPLE,
                               bg="#282828", disabledforeground="gray80", fg="white",
-                              activestyle='dotbox', selectbackground="#282828", selectforeground="red2")
+                              activestyle='dotbox', selectbackground="#282828", selectforeground="red2",
+                              width=50)
         songlistscrollbar = ttk.Scrollbar(songlistlabelframe, orient=tk.VERTICAL, command=songlist.yview)
 
         _songlistsearchchangedcommand = root._register(self._songlistsearchchanged)
@@ -212,13 +212,11 @@ class Musicgui:
         songcontrolsframe = ttk.LabelFrame(primaryframe, text="Song selection controls", relief='groove', padding=3)
         songcontrolsframe.grid(row=1, column=3, sticky='ns')
 
-
-
         def _updatebasedonvalues():
             if self.changes['paused']:
                 if self.playingsong is not None:
                     self.progressbarvar.set(value=self.progressbar)
-                    songinfo['text'] = (f"{self.selectedplaylist.get()}\n{self.playingsong.name[:50]}\n{self.playingsong.author}\n{self.playingsong.duration}\n" + f"-"*100)
+                    songinfo['text'] = (f"{self.selectedplaylist.get()}\n{self.playingsong.name[:50]}\n{self.playingsong.author}\n{self.playingsong.duration}\n" + f"-"*75)
                     if self.paused:
                         songdesc['text'] = "PAUSED"
                     else:
@@ -237,8 +235,6 @@ class Musicgui:
                     self._songlistsearchchanged()
                     self.songlistvar.set(value=[i.name for i in self.displaysonglistnew])
                     self.displaysonglist = self.displaysonglistnew
-                    if self.songlist:
-                        songlist.configure(width=max([len(i.name) for i in self.songlist])+5)
 
                     self.completeselectedsongs.update(currentlyselectedvalues)
                     songlist.selection_clear(0, last=len(self.displaysonglistnew) - 1)
@@ -253,8 +249,6 @@ class Musicgui:
 
             if self.changes['songqueue']:
                 self.songqueuevar.set(value=[f"{i+1:>3}: {v.name}" for i, v in enumerate(self.songqueue)])
-                if self.songqueue:
-                    queuelist.configure(width=max([len(i.name) for i in self.songqueue])+5)
                 self._addchange('songqueue', False)
 
             if self.changes['songinfo']:
@@ -322,7 +316,10 @@ class Musicgui:
 
     def _blacklist(self, *args):
         if not self.output[0]:
-            self._setoutput("blacklist")
+            if len(self.completeselectedsongs) == 0:
+                self._setoutput("blacklist", [[self.playingsong]])
+            else:
+                self._setoutput("blacklist", [list(self.completeselectedsongs)])
 
     def _chooseplaylist(self, *args):
         if not self.output[0]:
@@ -430,13 +427,13 @@ class Musicgui:
             self.paused = False
             self._addchange('paused')
 
-    def updatesonglist(self, songlist: List[main.Song]):
+    def updatesonglist(self, songlist: list[main.Song]):
         if self.songlist != songlist:
             self.songlist = songlist
             self._songlistsearchchanged()
             self._addchange('songlist')
 
-    def updatequeue(self, songqueue: List[main.Song]):
+    def updatequeue(self, songqueue: list[main.Song]):
         if self.songqueue != songqueue:
             self.songqueue = songqueue
             self._addchange('songqueue')
@@ -451,7 +448,7 @@ class Musicgui:
             self.progressbar = distance
             self._addchange('progressbar')
 
-    def updateplaylists(self, playlists: List[main.Playlist]):
+    def updateplaylists(self, playlists: list[main.Playlist]):
         if playlists != self.playlists:
             self.playlists = playlists
             self._addchange('playlistoptions')
