@@ -50,8 +50,12 @@ class Musicgui:
     playlistnames: list[str]
     playingsong: main.Song = None
     songqueue: list[main.Song] = []
+    songqueuenew: list[main.Song] = []
     songlist: list[main.Song] = []
     currentplaylist: main.Playlist = None
+    playlistwhichqueueisfrom: main.Playlist = None
+    playlistwhichsongisfrom: main.Playlist = None
+    playlistofplayingsong: main.Playlist = None
     displaysonglist: list[main.Song] = []
     displaysonglistnew: list[main.Song] = []
     progressbar: int = 0
@@ -64,7 +68,6 @@ class Musicgui:
         'songinfo': False,
         'playlistoptions': False,
         'progressbar': False,
-        'playlistnotselected': True,
         'resetselectedsongs': False,
         'playlistcomboboxupdate': False,
         'extrasonginfo': False
@@ -137,7 +140,7 @@ class Musicgui:
         queuelabelframe = ttk.Labelframe(primaryframe, text="Song queue", relief='groove', borderwidth=5)
         queuelabelframe.grid(column=0, row=0, columnspan=2, rowspan=2, sticky='nswe')
 
-        queuelist = MyListbox(queuelabelframe, height=15, listvariable=self.songqueuevar, state="disabled", width=50, exportselection=False)
+        queuelist = MyListbox(queuelabelframe, height=15, listvariable=self.songqueuevar, width=50, exportselection=False, selectmode=tk.MULTIPLE)
         queuelistscrollbar = ttk.Scrollbar(queuelabelframe, orient=tk.VERTICAL, command=queuelist.yview)
 
         queuelist.grid(column=0, row=0, sticky='nswe')
@@ -176,7 +179,7 @@ class Musicgui:
 
         self.completeselectedsongs: list[main.Song] = []
 
-        resetsonglistselectionbutton = ttk.Button(songlistlabelframe, text="RESET SELECTION",
+        resetsonglistselectionbutton = ttk.Button(songlistlabelframe, text="RESET SELECTION|SELECTED: 0",
                                                   command=lambda: self._addchange("resetselectedsongs"))
 
         songlist.grid(row=0, column=0, columnspan=2)
@@ -246,26 +249,28 @@ class Musicgui:
 
         extrasonginfoplaylistsresetbutton.grid(row=1, column=0, sticky='nesw')
 
-        extrasonginforemovebutton = ttk.Button(extrasonginfoplaylistlabelframe, text="REMOVE SONG FROM PLAYLISTS", command=self._extrasonginforemovebuttonfunc)
-        extrasonginforemovebutton.grid(row=0, column=1, sticky='')
+        extrasonginfobuttonsframe = ttk.Frame(extrasonginfoplaylistlabelframe, padding=2)
+        extrasonginfobuttonsframe.grid(row=0, column=1, sticky='nesw')
+
+        extrasonginforemovebutton = ttk.Button(extrasonginfobuttonsframe, text="REMOVE SONG FROM PLAYLISTS", command=self._extrasonginforemovebuttonfunc)
+        extrasonginforemovebutton.grid(row=0, column=0, sticky='')
+
+        extrasonginfoopensong = ttk.Button(extrasonginfobuttonsframe, text="OPEN IN YOUTUBE", command=lambda: self._setoutput("openinyoutube", [[*self.completeselectedsongs] or [self._getselectedsong()]]))
+        extrasonginfoopensong.grid(row=1, column=0, sticky='')
 
         def _updatebasedonvalues():
             extrasongselectedplaylistvalues = self._getextrasongselectedplaylists(extrasonginfoplaylists)
             if self.changes['songinfo'] or extrasongselectedplaylistvalues != self.extraplaylistselection:
                 if self.playingsong is not None:
                     self.progressbarvar.set(value=self.progressbar)
-                    songinfo['text'] = (f"{self.currentplaylist.name}\n{self.playingsong.name[:50]}\n{self.playingsong.author}\n{self.playingsong.duration}\n" + PLAYINGINFOPLACEHOLDER)
+                    songinfo['text'] = (f"{self.playlistwhichsongisfrom.name}\n{self.playingsong.name[:50]}\n{self.playingsong.author}\n{self.playingsong.duration}\n" + PLAYINGINFOPLACEHOLDER)
                     if self.paused:
                         songdesc['text'] = "PAUSED"
                     else:
                         songdesc['text'] = "PLAYING"
 
-                    targetsong: main.Song = None
-                    if len(self.completeselectedsongs) < 1:
-                        targetsong = self.playingsong
-                    else:
-                        targetsong = self.completeselectedsongs[-1]
-
+                targetsong = self._getselectedsong()
+                if targetsong is not None:
                     extrasonginfoname['text'] = targetsong.name[:75]
                     if (x := list(filter(lambda a: targetsong in a.getsongs(),
                                    self.playlists))) != self.playlistswithtargetsong:
@@ -280,39 +285,50 @@ class Musicgui:
                         extrasonginfoplaylists.selection_clear(0, 10000)
                         for i, v in enumerate(self.extraplaylistselection):
                             extrasonginfoplaylists.selection_set(self.playlistswithtargetsong.index(v))
+                else:
+                    extrasonginfoname['text'] = "NO SONG"
+                    self.extrainfoplaylistsvar.set([])
+                    extrasonginfoplaylists.selection_clear(0, 10000)
 
                 self._addchange('songinfo', False)
 
             if self.changes['resetselectedsongs']:
                 songlist.selection_clear(0, 100000000)
+                queuelist.selection_clear(0, 100000)
 
                 self.completeselectedsongs = []
                 self._addchange('resetselectedsongs', False)
 
-            currentlyselectedvalues = self._getselectedvalues(songlist)
-            # displayableselectedsongs = self.completeselectedsongs.intersection(set(self.displaysonglistnew))
-            displayableselectedsongs = [i for i in self.displaysonglistnew if i in self.completeselectedsongs]
-            if self.changes['songlist'] or (currentlyselectedvalues != displayableselectedsongs):
+            currentlyselectedsonglistvalues = self._getselectedvalues(songlist, self.displaysonglist)
+            currentlyselectedqueuevalues = self._getselectedvalues(queuelist, self.songqueue)
+            displayablesongsinsonglist = [i for i in self.displaysonglistnew if i in self.completeselectedsongs]
+            displayablesongsinqueue = [i for i in self.songqueuenew]
+            if self.changes['songlist'] or (currentlyselectedsonglistvalues != displayablesongsinsonglist) or (currentlyselectedsonglistvalues != currentlyselectedqueuevalues):
                 if self.changes['songlist']:
                     self._songlistsearchchanged()
                     self.songlistvar.set(value=[i.name for i in self.displaysonglistnew])
                     self.displaysonglist = self.displaysonglistnew
 
-                    # self.completeselectedsongs.update(currentlyselectedvalues)
-                    self.completeselectedsongs.extend([i for i in currentlyselectedvalues if i not in self.completeselectedsongs])
-                    songlist.selection_clear(0, last=len(self.displaysonglistnew) - 1)
+                    self.completeselectedsongs.extend([i for i in currentlyselectedsonglistvalues if i not in self.completeselectedsongs])
+                    songlist.selection_clear(0, 1000000)
+                    queuelist.selection_clear(0, 1000000)
 
                     self._addchange('songinfo')
                     self._addchange('songlist', False)
                 else:
-                    # self.completeselectedsongs.update(currentlyselectedvalues)
-                    self.completeselectedsongs.extend([i for i in currentlyselectedvalues if i not in self.completeselectedsongs])
+                    self.completeselectedsongs.extend([i for i in currentlyselectedsonglistvalues if i not in self.completeselectedsongs])
+                    self.completeselectedsongs.extend([i for i in currentlyselectedqueuevalues if i not in self.completeselectedsongs])
                     for song in self.completeselectedsongs:
                         if song:
                             if song in self.displaysonglistnew:
                                 songlist.selection_set(self.displaysonglistnew.index(song))
+                            if song in self.songqueuenew:
+                                queuelist.selection_set(self.songqueuenew.index(song))
+                    resetsonglistselectionbutton.configure(text=f"RESET SELECTION   |   SELECTED: {len(self.completeselectedsongs)}")
 
             if self.changes['songqueue']:
+                queuelist.selection_clear(0, 100000)
+                self.songqueue = self.songqueuenew
                 self.songqueuevar.set(value=[f"{i+1:>3}: {v.name}" for i, v in enumerate(self.songqueue)])
                 self._addchange('songqueue', False)
 
@@ -321,15 +337,6 @@ class Musicgui:
                 playlistselectcombobox['values'] = self.playlistnames
                 self._addchange('songinfo')
                 self._addchange('playlistoptions', False)
-
-            if self.changes['playlistnotselected']:
-                if playlistselectcombobox.get() == "No playlist selected.":
-                    playlistselectbutton.configure(state=tk.DISABLED)
-
-                elif playlistselectbutton.instate((tk.DISABLED, )):
-                    playlistselectbutton.configure(state=tk.NORMAL)
-                    songdesc.configure(text="PLAYING")
-                    self._addchange('playlistnotselected', False)
 
             if self.changes['progressbar']:
                 self.progressbarvar.set(value=self.progressbar)
@@ -345,7 +352,7 @@ class Musicgui:
                 menubar.entryconfigure(menubarplaylistlabelindex, label=label)
                 self._addchange('playlistcomboboxupdate', False)
 
-            root.after(250, _updatebasedonvalues)
+            root.after(50, _updatebasedonvalues)
 
         _updatebasedonvalues()
 
@@ -353,6 +360,8 @@ class Musicgui:
         root.mainloop()
 
     def _setoutput(self, command, params=()):
+        if params is None:
+            params = ()
         output = [command]
         output.extend(params)
         self.output = output
@@ -383,6 +392,11 @@ class Musicgui:
     def _chooseplaylist(self, *args):
         if not self.output[0]:
             self._setoutput("switchlist", [self.selectedplaylist.get()])
+
+    def _getselectedsong(self):
+        if len(self.completeselectedsongs) > 0:
+            return self.completeselectedsongs[-1]
+        return self.playingsong
 
     def _playlistcomboboxvalueupdated(self, *args):
         self._addchange('playlistcomboboxupdate')
@@ -431,12 +445,12 @@ class Musicgui:
         self._addchange('songlist')
         return True
 
-    def _getselectedvalues(self, songlistobject: tk.Listbox):
+    def _getselectedvalues(self, songlistobject: tk.Listbox, listedlist: list):
         selectedindices = songlistobject.curselection()
         songobjs = set()
         for i in selectedindices:
-            if i < len(self.displaysonglist):
-                songobjs.add(self.displaysonglist[i])
+            if i < len(listedlist):
+                songobjs.add(listedlist[i])
         return songobjs
 
     def _addsongtoplaylist(self, *args):
@@ -498,12 +512,14 @@ class Musicgui:
 
     def updatequeue(self, songqueue: list[main.Song]):
         if self.songqueue != songqueue:
-            self.songqueue = songqueue
+            self.songqueuenew = songqueue
+            self.playlistwhichqueueisfrom = self.currentplaylist
             self._addchange('songqueue')
 
     def updatesong(self, song: main.Song):
         if self.playingsong != song:
             self.playingsong = song
+            self.playlistwhichsongisfrom = self.playlistwhichqueueisfrom
             self._addchange('songinfo')
 
     def updateprogressbar(self, distance):
@@ -518,6 +534,7 @@ class Musicgui:
 
     def updatecurrentplaylist(self, playlist: main.Playlist):
         self.currentplaylist = playlist
+
 
 
 G.musicgui: Musicgui = None

@@ -6,6 +6,7 @@ import random
 import time
 from win10toast import ToastNotifier
 from sys import exit
+import webbrowser
 
 with open("programinfo.txt", "r") as file:
     lines = file.readlines()
@@ -17,7 +18,7 @@ SEEDURATIONKEYWORD = "NOTHING"
 ICON = "btecify.ico"
 
 pafy.set_api_key(APIKEY)
-
+browser = webbrowser.get("C:/Program Files (x86)/Google/Chrome/Application/chrome.exe %s")
 
 class Song:
     vidid = ""
@@ -255,6 +256,7 @@ G = GlobalVars()
 G.input = ""
 G.player = None
 G.songset: set[Song] = set()
+G.cursave = None
 
 
 def infunc():
@@ -276,20 +278,12 @@ def songdetails(song):
 
 
 def savedata(stuff):
-    with open(DATAFILENAME, "wb") as file:
-        pickle.dump(stuff, file)
+    data = pickle.dumps(stuff)
+    if G.cursave != data:
+        with open(DATAFILENAME, "wb") as file:
+            file.write(data)
+            G.cursave = data
 
-
-# def searchsongname(targetlist: List[Song], targetvalue: str):
-#     targetlist = targetlist.copy()
-#     temp = []
-#     for i in range(0, len(targetvalue)):
-#         for song in targetlist:
-#             if song.name[i].lower() == targetvalue[i].lower():
-#                 temp.append(song)
-#         targetlist = temp.copy()
-#         temp = []
-#     return targetlist
 
 def searchsongname(targetlist: list[Song], targetvalue: str):
     targetlist = targetlist.copy()
@@ -360,13 +354,13 @@ def main():
     print("Selected first playlist.")
     gui.clearoutput()
 
-    def updategui():
+    def updategui():  # ORDER IS IMPORTANT!!!
+        gui.updatecurrentplaylist(playlist)
         gui.updatesonglist(G.songset.copy())
-        gui.updatequeue(player.queue.copy())
         gui.updatesong(player.song)
+        gui.updatequeue(player.queue.copy())
         gui.updateprogressbar(int(player.getpos() * 100))
         gui.updateplaylists(saveinfo['playlists'].values())
-        gui.updatecurrentplaylist(playlist)
 
     first = True
     updategui()
@@ -530,16 +524,17 @@ def main():
                 for playlist in targetplaylists:
                     playlist.removesong(targetsong)
 
+            elif command == "openinyoutube" and len(inp) > 1:
+                songs = inp[1]
+                for song in songs:
+                    if song is not None:
+                        print("Opening", song.url)
+                        browser.open_new_tab(song.url)
+
             gui.clearoutput()
         updategui()
         savedata(saveinfo)
-        time.sleep(0.1)
-
-
-def temp():
-    with open(DATAFILENAME,"rb") as file:
-        stuff = pickle.load(file)
-    print(stuff)
+        time.sleep(0.05)
 
 
 if __name__ == '__main__':
