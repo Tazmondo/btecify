@@ -84,14 +84,15 @@ class Playlist:
                 try:
                     for video in playlistobject:
                         if video.videoid not in map(lambda a: a.vidid, self.ytplaylist):
-                            if video.videoid not in map(lambda a: a.vidid, G.songlist):
+                            if video.videoid not in map(lambda a: a.vidid, G.songset):
                                 newsong = Song(video.videoid, video.title, video.watchv_url, video.duration, video.author,)
-                                G.songlist.add(newsong)
+                                G.songset.add(newsong)
                                 self.ytplaylist.add(newsong)
                                 print(f"Downloading and adding {video.title}")
 
                             else:
-                                correlatesong = G.songlist[list(map(lambda a: a.vidid, G.songlist)).index(video.videoid)]
+                                songlist = list(G.songset)
+                                correlatesong = songlist[list(map(lambda a: a.vidid, songlist)).index(video.videoid)]
                                 self.ytplaylist.add(correlatesong)
                                 print(f"Finding and adding {video.title}")
                 except pafy.util.GdataError as e:
@@ -103,6 +104,16 @@ class Playlist:
     def removesong(self, song: Song):
         if song in self.addedsongs:
             self.addedsongs.remove(song)
+        self.removedsongs.add(song)
+
+    def addsong(self, song: Song):
+        if song in self.removedsongs:
+            self.removedsongs.remove(song)
+        self.addedsongs.add(song)
+
+    def clearcustomsongs(self):
+        self.addedsongs = set()
+        self.removedsongs = set()
 
 
 class Player:
@@ -136,6 +147,7 @@ class Player:
             count += 1
             if count > 10:
                 return False
+        self.paused = False
         return True
 
     def pause(self):
@@ -195,12 +207,13 @@ class Player:
                 time.sleep(1)
                 if errcount > 4:
                     return False
-            self.toaster.show_toast(title="NOW PLAYING", msg=nextsong.name, icon_path=ICON, duration=5, threaded=True, sound=False)
             print("Attempting to play")
             if not self.play():
                 print("Couldn't play? VLC State: ", self.musicplayer.get_state())
                 continue
             successful = True
+        self.toaster.show_toast(title="NOW PLAYING", msg=nextsong.name, icon_path=ICON, duration=5, threaded=True,
+                                sound=False)
         print("\n---NEXT SONG---")
         print(songdetails(self.song))
 
@@ -222,8 +235,11 @@ class Player:
     def getvolume(self):
         return self.musicplayer.audio_get_volume()
 
-    def switchplaylist(self, playlist: Playlist):
-        self.playlist = playlist
+    def refreshplaylist(self, playlist: Playlist = None):
+        if playlist is None:
+            playlist = self.playlist
+        else:
+            self.playlist = playlist
         self.songlist = playlist.getsongs()
         self.queue = playlist.getqueue()
 
@@ -238,7 +254,7 @@ class GlobalVars:
 G = GlobalVars()
 G.input = ""
 G.player = None
-G.songlist: set[Song] = set()
+G.songset: set[Song] = set()
 
 
 def infunc():
@@ -300,7 +316,7 @@ def main():
             saveinfo.update(loaddata)
         except EOFError:
             print("Could not retrieve data.")
-    G.songlist = sorted(saveinfo['songs'], key=lambda a: a.name.lower())
+    G.songset: set[Song] = saveinfo['songs']
     inp = ""
     saveinfo['playlists']['empty'] = Playlist("empty")
     playlist: Playlist = saveinfo['playlists']['empty']
@@ -331,7 +347,7 @@ def main():
         if inp[0] == "switchlist":
             playlist = saveinfo['playlists'][inp[1]]
             playlist.refreshplaylistfromyoutube()
-            player.switchplaylist(playlist)
+            player.refreshplaylist(playlist)
         elif inp[0] == "EXIT":
             print("Closed window...")
             exit("exiting")
@@ -345,15 +361,15 @@ def main():
     gui.clearoutput()
 
     def updategui():
-        gui.updatesonglist(G.songlist.copy())
+        gui.updatesonglist(G.songset.copy())
         gui.updatequeue(player.queue.copy())
         gui.updatesong(player.song)
         gui.updateprogressbar(int(player.getpos() * 100))
         gui.updateplaylists(saveinfo['playlists'].values())
+        gui.updatecurrentplaylist(playlist)
 
     first = True
     updategui()
-    print(player.finished())
     while True:
         if player.finished() and playlist and len(playlist.getsongs()) > 0:
             while not player.nextsong():
@@ -415,7 +431,7 @@ def main():
                     targetpl = saveinfo['playlists'][target]
                     targetpl.refreshplaylistfromyoutube()
                     playlist = targetpl
-                    player.switchplaylist(targetpl)
+                    player.refreshplaylist(targetpl)
 
             elif (command == 'removelist' or command == 'rl') and len(inp) > 1:
                 target = inp[1]
@@ -487,20 +503,32 @@ def main():
                     targetpl = saveinfo['playlists'][value]
                     targetpl.refreshplaylistfromyoutube(force=True)
 
-            elif command == "addsong" and len(inp) >=2:
+            elif command == "addsong" and len(inp) >= 2:
                 playlist = inp[1]
                 songs = inp[2:] or [player.song]
                 for song in songs:
-                    playlist.getsongs().append(song)
+                    playlist.addsong(song)
 
             elif command == "createsong" and len(inp) == 2:
                 url = inp[1]
-                G.songlist.append(Song.createsongfromurl(url))
-                G.songlist = sorted(G.songlist, key=lambda a: a.name.lower())
+                G.songset.add(Song.createsongfromurl(url))
 
             elif command == "EXIT":
                 print("Exiting...")
                 exit("Exited.")
+
+            elif command == "resetfromyoutube" and len(inp) == 2:
+                targetpl = inp[1]
+                if targetpl in saveinfo['playlists']:
+                    targetpl = saveinfo['playlists'][targetpl]
+                    targetpl.clearcustomsongs()
+                    player.refreshplaylist(targetpl)
+
+            elif command == "removesongfromplaylists" and len(inp) == 3:
+                targetsong = inp[1]
+                targetplaylists = inp[2]
+                for playlist in targetplaylists:
+                    playlist.removesong(targetsong)
 
             gui.clearoutput()
         updategui()
