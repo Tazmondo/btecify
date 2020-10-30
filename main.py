@@ -5,14 +5,37 @@ import threading
 import random
 import time
 from win10toast import ToastNotifier
+import sys
 from sys import exit
 import webbrowser
 
-with open("programinfo.txt", "r") as file:
-    lines = file.readlines()
-APIKEY = lines[0]
-PLAYLISTURL = lines[1]
+try:  # Make sure it doesn't crash if there is no console.
+    sys.stdout.write("\n")
+    sys.stdout.flush()
+except AttributeError:
+    class dummyStream:
+        ''' dummyStream behaves like a stream but does nothing. '''
+        def __init__(self): pass
+        def write(self,data): pass
+        def read(self,data): pass
+        def flush(self): pass
+        def close(self): pass
+    # and now redirect all default streams to this dummyStream:
+    sys.stdout = dummyStream()
+    sys.stderr = dummyStream()
+    sys.stdin = dummyStream()
+    sys.__stdout__ = dummyStream()
+    sys.__stderr__ = dummyStream()
+    sys.__stdin__ = dummyStream()
 
+try:
+    with open("programinfo.txt", "r") as file:
+        lines = file.readlines()
+except FileNotFoundError:
+    print("PLEASE CREATE programinfo.txt WITH YOUR APIKEY")
+    input()
+    exit()
+APIKEY = lines[0]
 DATAFILENAME = "data.txt"
 SEEDURATIONKEYWORD = "NOTHING"
 ICON = "btecify.ico"

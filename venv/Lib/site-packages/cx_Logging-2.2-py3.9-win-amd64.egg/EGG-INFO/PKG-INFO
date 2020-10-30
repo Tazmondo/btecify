@@ -1,0 +1,22 @@
+Metadata-Version: 1.2
+Name: cx-Logging
+Version: 2.2
+Summary: Python and C interfaces for logging
+Home-page: http://cx-logging.sourceforge.net
+Author: Anthony Tuininga
+Author-email: anthony.tuininga@gmail.com
+Maintainer: Anthony Tuininga
+Maintainer-email: anthony.tuininga@gmail.com
+License: Python Software Foundation License
+Description: Python and C interfaces for logging
+Keywords: logging
+Platform: UNKNOWN
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: Python Software Foundation License
+Classifier: Natural Language :: English
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: C
+Classifier: Programming Language :: Python
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Topic :: Utilities

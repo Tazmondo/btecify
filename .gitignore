@@ -1,3 +1,4 @@
+/.idea
 /programinfo.txt
 /test.py
 /testing.txt
@@ -9,3 +10,8 @@
 /launch_con.bat
 /launch_silent.bat
 /todo.txt
+/main.spec
+/build/
+/dist/
+/cmdvenv.bat
+/setup.py
