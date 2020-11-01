@@ -5,43 +5,80 @@ import threading
 import random
 import time
 from win10toast import ToastNotifier
+import os.path
 import sys
 from sys import exit
 import webbrowser
+import appdirs
+import musicGUI
+
+APIKEYLENGTH = 39
 
 try:  # Make sure it doesn't crash if there is no console.
     sys.stdout.write("\n")
     sys.stdout.flush()
 except AttributeError:
-    class dummyStream:
-        ''' dummyStream behaves like a stream but does nothing. '''
+    class DummyStream:
+        """ dummyStream behaves like a stream but does nothing. """
         def __init__(self): pass
-        def write(self,data): pass
-        def read(self,data): pass
+        def write(self, data): pass
+        def read(self, data): pass
         def flush(self): pass
         def close(self): pass
     # and now redirect all default streams to this dummyStream:
-    sys.stdout = dummyStream()
-    sys.stderr = dummyStream()
-    sys.stdin = dummyStream()
-    sys.__stdout__ = dummyStream()
-    sys.__stderr__ = dummyStream()
-    sys.__stdin__ = dummyStream()
+    sys.stdout = DummyStream()
+    sys.stderr = DummyStream()
+    sys.stdin = DummyStream()
+    sys.__stdout__ = DummyStream()
+    sys.__stderr__ = DummyStream()
+    sys.__stdin__ = DummyStream()
 
-try:
-    with open("programinfo.txt", "r") as file:
-        lines = file.readlines()
-except FileNotFoundError:
-    print("PLEASE CREATE programinfo.txt WITH YOUR APIKEY")
-    input()
-    exit()
-APIKEY = lines[0]
-DATAFILENAME = "data.txt"
-SEEDURATIONKEYWORD = "NOTHING"
 ICON = "btecify.ico"
+APPNAME = "btecify"
+
+DATADIRECTORY = appdirs.user_data_dir(APPNAME, appauthor=False)
+LOGDIRECTORY = appdirs.user_log_dir(APPNAME, appauthor=False)
+DATAFILE = DATADIRECTORY + "\\" + "data.txt"
+APIKEYFILE = DATADIRECTORY + "\\" + "apikey.txt"
+LOGFILE = LOGDIRECTORY + "\\" + "BTECIFY LOG-{0.tm_year:0>4}.{0.tm_mon:0>2}.{0.tm_mday:0>2}.{0.tm_hour:0>2}.{0.tm_min:0>2}.{0.tm_sec:0>2}.log".format(time.localtime())
+
+# Creating all directories and files if they don't already exist.
+try:
+    os.mkdir(LOGDIRECTORY)  # Log directory is inside data direectory and also creates the logs folder so it is used here.
+except FileExistsError:
+    print(f"Directory {LOGDIRECTORY} already exists.")
+
+for savefile in (DATAFILE, APIKEYFILE, LOGFILE):
+    try:
+        with open(savefile, "r"):
+            pass
+    except FileNotFoundError:
+        with open(savefile, "w"):
+            pass
+
+APIKEY = ""
+try:
+    with open(APIKEYFILE, "r") as file:
+        APIKEY = file.read()
+    if len(APIKEY) != APIKEYLENGTH:
+        raise ValueError("Incorrect key length. Make sure to use the right key:", APIKEY, len(APIKEY))
+except (FileNotFoundError, ValueError) as e:
+    errmsg = ""
+    if type(e) is FileNotFoundError:
+        print("apikey file not found")
+        errmsg = "No youtube api key found, please enter one."
+    elif type(e) is ValueError:
+        print(e)
+        errmsg = "Incorrect api key, please enter a new one."
+    while len(APIKEY) != APIKEYLENGTH:
+        APIKEY = musicGUI.msgbox("Error", errmsg, str)
+        errmsg = "Incorrect api key, please enter a new one."
+    with open(APIKEYFILE, "w") as file:
+        file.write(APIKEY)
 
 pafy.set_api_key(APIKEY)
-browser = webbrowser.get("C:/Program Files (x86)/Google/Chrome/Application/chrome.exe %s")
+BROWSER = webbrowser.get("C:/Program Files (x86)/Google/Chrome/Application/chrome.exe %s")
+
 
 class Song:
     vidid = ""
@@ -150,14 +187,16 @@ class Player:
     playlist: Playlist
     toaster: ToastNotifier
 
-    def __init__(self):
+    def __init__(self, playlist: Playlist):
         self.instance: vlc.Instance = vlc.Instance()
         self.musicplayer = self.instance.media_player_new()
         self.paused = False
         self.toaster = ToastNotifier()
-        self.playlist = None
+        self.playlist = playlist
         self.songlist = None
         self.queue = []
+        self.manual = False
+        self.refreshplaylist()
 
         G.player = self
 
@@ -206,6 +245,7 @@ class Player:
         print("nextsong called")
 
         if override is None:
+            self.manual = False
             if self.song and self.song in self.playlist.getsongs() and self.song not in self.queue:
                 self.playlist.seensongs.add(self.song)
 
@@ -220,6 +260,7 @@ class Player:
                 print(self.queue)
                 nextsong = self.queue.pop(0)
         else:
+            self.manual = True
             nextsong = override
         errcount = 0
         print("Attempting to set song.")
@@ -247,7 +288,8 @@ class Player:
         self.nextsong(override=song)
 
     def skip(self):
-        self.nextsong()
+        if len(self.playlist.getsongs()) > 0:
+            self.nextsong()
 
     def setvolume(self, value):
         if value < 0:
@@ -267,8 +309,11 @@ class Player:
         self.songlist = playlist.getsongs()
         self.queue = playlist.getqueue()
 
-
-import musicGUI
+    def seek(self, seekpercent):
+        if self.musicplayer.is_seekable():
+            self.musicplayer.set_time(int(self.musicplayer.get_length() * seekpercent))
+            return True
+        return False
 
 
 class GlobalVars:
@@ -280,18 +325,14 @@ G.input = ""
 G.player = None
 G.songset: set[Song] = set()
 G.cursave = None
+G.logs = []
+
+oldprint = print
 
 
-def infunc():
-    while True:
-        while G.input:
-            pass
-        inp = input("")
-        if not inp:
-            G.input = SEEDURATIONKEYWORD
-
-        else:
-            G.input = inp
+def print(*args, **kwargs):
+    oldprint(*args, **kwargs)
+    G.logs.append((time.localtime(), args))
 
 
 def songdetails(song):
@@ -300,12 +341,28 @@ def songdetails(song):
           f"Duration: {song.duration}")
 
 
-def savedata(stuff):
+def savedata(stuff, cursave=None):
     data = pickle.dumps(stuff)
-    if G.cursave != data:
-        with open(DATAFILENAME, "wb") as file:
+    if cursave != data:
+        with open(DATAFILE, "wb") as file:
             file.write(data)
-            G.cursave = data
+            cursave = data
+    return cursave
+
+
+def savelog(logs, savedlog):
+    if logs != savedlog:
+        with open(LOGFILE, "w") as f:
+            for log in logs:
+                logstr = ""
+                timevalues = log[0]
+                logstr += f"{timevalues.tm_hour:0>2}:{timevalues.tm_min:0>2}:{timevalues.tm_sec:0>2}: "
+                for obj in log[1]:
+                    objstring = str(obj).replace("\n", "\n\t  ")
+                    logstr += objstring + " "
+                f.write(logstr + "\n\n")
+        savedlog = logs.copy()
+    return savedlog
 
 
 def searchsongname(targetlist: list[Song], targetvalue: str):
@@ -326,8 +383,9 @@ def main():
         'options': {
             'volume': 50
         },
+        'playlistids': []
     }
-    with open(DATAFILENAME, "rb") as file:
+    with open(DATAFILE, "rb") as file:
         try:
             loaddata: dict = pickle.load(file)
             saveinfo.update(loaddata)
@@ -335,8 +393,9 @@ def main():
             print("Could not retrieve data.")
     G.songset: set[Song] = saveinfo['songs']
     inp = ""
-    saveinfo['playlists']['empty'] = Playlist("empty")
-    playlist: Playlist = saveinfo['playlists']['empty']
+    playlists = saveinfo['playlists']
+    playlists['empty'] = Playlist("empty")
+    playlist: Playlist = playlists['empty']
 
     print("List is up to date!")
 
@@ -345,47 +404,55 @@ def main():
     # while G.player is None:
     #     pass
     # player = G.player
-    player = Player()
+    player = Player(playlist)
     player.setvolume(saveinfo['options']['volume'])
     print("Created sound player.")
 
-    guithread = threading.Thread(target=musicGUI.Musicgui, args=[list(saveinfo['playlists'].values()), saveinfo['options']])
+    guithread = threading.Thread(target=musicGUI.Musicgui, args=[list(playlists.values()), saveinfo['options']])
     guithread.start()
     while musicGUI.G.musicgui is None:
         pass
     gui: musicGUI.Musicgui = musicGUI.G.musicgui
     print("Started GUI!")
 
-    while playlist is None:
-        inp = gui.output
-        if not gui.output[0]:
-            time.sleep(0.4)
-            continue
-        if inp[0] == "switchlist":
-            playlist = saveinfo['playlists'][inp[1]]
-            playlist.refreshplaylistfromyoutube()
-            player.refreshplaylist(playlist)
-        elif inp[0] == "EXIT":
-            print("Closed window...")
-            exit("exiting")
-        elif inp[0] != "":
-            gui.clearoutput()
-        else:
-            pass
 
-    savedata(saveinfo)
+    # while playlist is None:  # Playlist is set automatically to empty now...
+    #     inp = gui.output
+    #     if not gui.output[0]:
+    #         time.sleep(0.4)
+    #         continue
+    #     if inp[0] == "switchlist":
+    #         playlist = playlists[inp[1]]
+    #         playlist.refreshplaylistfromyoutube()
+    #         player.refreshplaylist(playlist)
+    #     elif inp[0] == "EXIT":
+    #         print("Closed window...")
+    #         exit("exiting")
+    #     elif inp[0] != "":
+    #         gui.clearoutput()
+    #     else:
+    #         pass
+
+    cursave = savedata(saveinfo)
+    savedlog = []
     print("Selected first playlist.")
     gui.clearoutput()
 
     def updategui():  # ORDER IS IMPORTANT!!!
         gui.updatecurrentplaylist(playlist)
         gui.updatesonglist(G.songset.copy())
-        gui.updatesong(player.song)
+        gui.updatesong(player.song, player.manual)
         gui.updatequeue(player.queue.copy())
         gui.updateprogressbar(int(player.getpos() * 100))
-        gui.updateplaylists(saveinfo['playlists'].values())
+        gui.updateplaylists(playlists.values())
+        gui.updatelogs(G.logs)
 
-    first = True
+    def retrievelogs():
+        logs = musicGUI.G.logs.copy()
+        for log in logs:  # Trying to be more thread-safe and stuff idk
+            musicGUI.G.logs.remove(log)
+        return logs
+
     updategui()
     while True:
         if player.finished() and playlist and len(playlist.getsongs()) > 0:
@@ -427,25 +494,25 @@ def main():
 
             elif (command.lower() == "addlist" or command == 'al') and len(inp) > 1:
                 name = inp[1]
-                if name not in saveinfo['playlists']:
+                if name not in playlists:
                     if len(inp) == 3:
                         url = inp[2]
                         newplaylist = Playlist(name, url)
-                        saveinfo['playlists'][newplaylist.name] = newplaylist
+                        playlists[newplaylist.name] = newplaylist
                         print(f"Added playlist {newplaylist.name} with url {newplaylist.url}")
                     elif len(inp) == 2:
                         newplaylist = Playlist(name)
-                        saveinfo['playlists'][newplaylist.name] = newplaylist
+                        playlists[newplaylist.name] = newplaylist
                         print(f"Added playlist {newplaylist.name} with no url.")
                 else:
                     print("Playlist already exists: "+name)
 
             elif (command == 'switchlist' or command == 'sl') and len(inp) > 1:
                 target = inp[1]
-                if target not in saveinfo['playlists']:
+                if target not in playlists:
                     print("Invalid playlist.")
                 else:
-                    targetpl = saveinfo['playlists'][target]
+                    targetpl = playlists[target]
                     targetpl.refreshplaylistfromyoutube()
                     playlist = targetpl
                     player.refreshplaylist(targetpl)
@@ -453,45 +520,33 @@ def main():
             elif (command == 'removelist' or command == 'rl') and len(inp) > 1:
                 target = inp[1]
                 print(target)
-                if target.name in saveinfo['playlists']:
+                if target.name in playlists:
                     print("Deleting", target)
-                    del saveinfo['playlists'][target.name]
+                    del playlists[target.name]
 
             elif command == "getcurrentsong" or command == 'gcs':
                 print("\n"+songdetails(player.song))
 
-            elif command == "oldblacklist" or command == 'bl':  # Not in use anymore...
-                if len(inp) > 1:
-                    value = " ".join(inp[1:])
-                    matches = searchsongname(playlist.getsongs().copy(), value)
-
-                    if len(matches) > 1:
-                        print("Be more specific. Found: ")
-                        print(list(k.name for k in matches))
-                    elif not matches:
-                        print("Not found.")
-                    else:
-                        matches[0].blacklist = not matches[0].blacklist
-                        print(f"{matches[0].name} has blacklist now set to: {matches[0].blacklist}")
-                else:
-                    player.song.blacklist = not player.song.blacklist
-                    print(f"{player.song.name} has blacklist now set to: {player.song.blacklist}")
-
             elif command == "blacklist" and len(inp) == 2:
-                selectedsongs = inp[1]
+                selectedsong = inp[1]
 
-                if len(selectedsongs) != 0:
-                    for song in selectedsongs:
-                        playlist.removesong(song)
-                pass
+                if selectedsong is not None:
+                    playlist.removesong(selectedsong)
+
+            elif command == "removesongsfromplaylist" and len(inp) == 3:
+                targetpl = inp[1]
+                targetsongs = inp[2]
+                if targetpl and targetsongs:
+                    for song in targetsongs:
+                        targetpl.removesong(song)
 
             elif command == "requeue":
                 player.queue = playlist.getqueue()
 
             elif command == "unwatch" and len(inp) > 1:
                 targetplaylistname = inp[1]
-                if targetplaylistname in saveinfo['playlists']:
-                    targetplaylist = saveinfo['playlists'][targetplaylistname]
+                if targetplaylistname in playlists:
+                    targetplaylist = playlists[targetplaylistname]
                     targetplaylist.seensongs = set()
                     player.queue = playlist.getqueue()
                 else:
@@ -499,7 +554,6 @@ def main():
 
             elif command == "song" and len(inp) > 1:
                 song = inp[1]
-                print(song, type(song))
                 if type(song) is str:
                     matches = searchsongname(playlist.getsongs().copy(), song)
                     if not matches:
@@ -509,22 +563,24 @@ def main():
                         print(list(k.name for k in matches))
                     else:
                         player.manualsong(matches[0])
+                        manual = True
                 elif type(song) is Song:
                     player.manualsong(song)
+                    manual = True
                 else:
                     print("Couldn't get manual song type?")
 
             elif command == "forceupdate" and len(inp) == 2:
                 value = inp[1]
-                if value in saveinfo['playlists']:
-                    targetpl = saveinfo['playlists'][value]
+                if value in playlists:
+                    targetpl = playlists[value]
                     targetpl.refreshplaylistfromyoutube(force=True)
 
             elif command == "addsong" and len(inp) >= 2:
-                playlist = inp[1]
+                targetpl = inp[1]
                 songs = inp[2:] or [player.song]
                 for song in songs:
-                    playlist.addsong(song)
+                    targetpl.addsong(song)
 
             elif command == "createsong" and len(inp) == 2:
                 url = inp[1]
@@ -536,56 +592,64 @@ def main():
 
             elif command == "resetfromyoutube" and len(inp) == 2:
                 targetpl = inp[1]
-                if targetpl in saveinfo['playlists']:
-                    targetpl = saveinfo['playlists'][targetpl]
+                if targetpl in playlists:
+                    targetpl = playlists[targetpl]
                     targetpl.clearcustomsongs()
                     player.refreshplaylist(targetpl)
 
             elif command == "removesongfromplaylists" and len(inp) == 3:
                 targetsong = inp[1]
                 targetplaylists = inp[2]
-                for playlist in targetplaylists:
-                    playlist.removesong(targetsong)
+                for pl in targetplaylists:
+                    pl.removesong(targetsong)
 
             elif command == "openinyoutube" and len(inp) > 1:
                 songs = inp[1]
                 for song in songs:
                     if song is not None:
                         print("Opening", song.url)
-                        browser.open_new_tab(song.url)
+                        BROWSER.open_new_tab(song.url)
+
+            elif command == "renameplaylist" and len(inp) == 3:
+                targetpl: Playlist = inp[1]
+                newname: str = inp[2]
+                if targetpl and newname:
+                    if targetpl.name != "empty" and newname not in playlists:
+                        del playlists[targetpl.name]
+                        targetpl.name = newname
+                        playlists[targetpl.name] = targetpl
+
+            elif command == "newapikey" and len(inp) == 1:
+                key = ""
+                while len(key) != APIKEYLENGTH:
+                    key = musicGUI.msgbox("API Key", "Enter a new api key", str)
+                pafy.set_api_key(key)
+                with open(APIKEYFILE, "w") as f:
+                    f.write(key)
+
+            elif command == "randomsong" and len(inp) == 1:
+                song = random.choice(list(G.songset))
+                player.manualsong(song)
+
+            elif command == "copyplaylist" and len(inp) == 3:
+                targetpl: Playlist = inp[1]
+                newname: str = inp[2]
+                if targetpl and newname:
+                    playlists[newname] = Playlist(newname, targetpl.url, targetpl.ytplaylist,
+                                                  targetpl.addedsongs, targetpl.removedsongs, False)
+
+            elif command == "seek" and len(inp) == 2:
+                seekpercent = inp[1]
+                player.seek(seekpercent)
 
             gui.clearoutput()
+
+        G.logs.extend(retrievelogs())
         updategui()
-        savedata(saveinfo)
+        cursave = savedata(saveinfo, cursave)
+        savedlog = savelog(G.logs, savedlog)
         time.sleep(0.05)
 
 
 if __name__ == '__main__':
-    # import pickle
-    #
-    # with open("data.txt", "rb") as f:
-    #     stuff = pickle.load(f)
-    #
-    # print(stuff)
-    # newstuff = {}
-    # songlistt = []
-    # toaddlist = stuff['music'].songs
-    # toaddlist.extend(stuff['bangers'].songs)
-    # toaddlist.extend(stuff['calm'].songs)
-    # for x in toaddlist:
-    #     if x.name not in [i.name for i in songlistt]:
-    #         songlistt.append(Song(x.vidid, x.name, x.url, x.duration, x.author))
-    # #print([i.name for i in songlist])
-    # #print(len(songlist))
-    #
-    # playlists = {}
-    # playlists['music'] = Playlist(stuff['music'].name, stuff['music'].url, autoupdate=False)
-    # playlists['bangers'] = Playlist(stuff['bangers'].name, stuff['bangers'].url, autoupdate=False)
-    # playlists['calm'] = Playlist(stuff['calm'].name, stuff['calm'].url, autoupdate=False)
-    #
-    # newstuff['songs'] = songlistt
-    # newstuff['playlists'] = playlists
-    # newstuff['options'] = {}
-    # savedata(newstuff)
-
     main()
