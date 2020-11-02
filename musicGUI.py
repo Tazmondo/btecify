@@ -367,18 +367,16 @@ class Musicgui:
                 targetsong = self._getselectedsong()
                 if targetsong is not None:
                     extrasonginfoname['text'] = targetsong.name[:(queuelist.cget("width")//3)+len(PLAYINGINFOPLACEHOLDER)]
-                    if (x := list(filter(lambda a: targetsong in a.getsongs(),
-                                   self.playlists))) != self.playlistswithtargetsong:
-                        self.playlistswithtargetsong = x
-                        self.extrainfoplaylistsvar.set([i.name for i in self.playlistswithtargetsong])
-                        extrasonginfoplaylists.selection_clear(0, 1000000)
-                        self.extraplaylistselection = []
+                    self.playlistswithtargetsong = list(filter(lambda a: targetsong in a.getsongs(), self.playlists))
+                    self.extrainfoplaylistsvar.set([i.name for i in self.playlistswithtargetsong])
+                    extrasonginfoplaylists.selection_clear(0, 1000000)
+                    self.extraplaylistselection.extend([i for i in extrasongselectedplaylistvalues if i not in self.extraplaylistselection])
 
-                    elif set(extrasongselectedplaylistvalues) != set(self.extraplaylistselection):
-                        self.extraplaylistselection.extend([i for i in extrasongselectedplaylistvalues if i not in self.extraplaylistselection])
-                        extrasonginfoplaylists.selection_clear(0, 10000)
-                        for i, v in enumerate(self.extraplaylistselection):
+                    for i, v in enumerate(self.extraplaylistselection):
+                        if v in self.playlistswithtargetsong:
                             extrasonginfoplaylists.selection_set(self.playlistswithtargetsong.index(v))
+                        else:
+                            self.extraplaylistselection.remove(v)
                 else:
                     extrasonginfoname['text'] = "NO SONG"
                     self.extrainfoplaylistsvar.set([])
@@ -491,12 +489,15 @@ class Musicgui:
         G.musicgui = self
         root.mainloop()
 
-    def _setoutput(self, command, params=()):
+    def _setoutput(self, command, params=(), wait=False):
         if params is None:
             params = ()
         output = [command]
         output.extend(params)
         self.output = output
+        if wait:
+            while self.output != ['']:
+                time.sleep(0.01)
 
     def _skip(self, *args):
         if not self.output[0]:
@@ -508,7 +509,8 @@ class Musicgui:
 
     def _extrasonginforemovebuttonfunc(self, *args):
         if not self.output[0]:
-            self._setoutput("removesongfromplaylists", [self._getselectedsong(), self.extraplaylistselection])
+            self._setoutput("removesongfromplaylists", [self._getselectedsong(), self.extraplaylistselection], True)
+            self._addchange("songinfo")
 
     def _pause(self, *args):
         if not self.output[0]:
@@ -516,7 +518,8 @@ class Musicgui:
 
     def _playerremovesongbutton(self, *args):
         if not self.output[0]:
-            self._setoutput("blacklist", [self.playingsong])
+            self._setoutput("blacklist", [self.playingsong], True)
+            self._addchange('songinfo')
 
     def _chooseplaylist(self, *args):
         if not self.output[0]:
@@ -608,7 +611,8 @@ class Musicgui:
         targetpl = self._getselectedplaylist()
         if targetpl:
             params = [targetpl]
-            self._setoutput("addsong", params + self._getselectedsongs())
+            self._setoutput("addsong", params + self._getselectedsongs(), True)
+            self._addchange("songinfo")
 
     def _getsongfromname(self, name):
         for song in self.songlist:

@@ -20,7 +20,7 @@ try:  # Make sure it doesn't crash if there is no console.
 except AttributeError:
     class DummyStream:
         """ dummyStream behaves like a stream but does nothing. """
-        def __init__(self): pass
+        def __init__(self): self.isatty = False
         def write(self, data): pass
         def read(self, data): pass
         def flush(self): pass
@@ -35,16 +35,25 @@ except AttributeError:
 
 ICON = "btecify.ico"
 APPNAME = "btecify"
+TESTINGMODE = False
 
-DATADIRECTORY = appdirs.user_data_dir(APPNAME, appauthor=False)
-LOGDIRECTORY = appdirs.user_log_dir(APPNAME, appauthor=False)
-DATAFILE = DATADIRECTORY + "\\" + "data.txt"
-APIKEYFILE = DATADIRECTORY + "\\" + "apikey.txt"
-LOGFILE = LOGDIRECTORY + "\\" + "BTECIFY LOG-{0.tm_year:0>4}.{0.tm_mon:0>2}.{0.tm_mday:0>2}.{0.tm_hour:0>2}.{0.tm_min:0>2}.{0.tm_sec:0>2}.log".format(time.localtime())
+if not TESTINGMODE:
+    DATADIRECTORY = appdirs.user_data_dir(APPNAME, appauthor=False)
+    LOGDIRECTORY = appdirs.user_log_dir(APPNAME, appauthor=False)
+    DATAFILE = DATADIRECTORY + "\\" + "data.txt"
+    APIKEYFILE = DATADIRECTORY + "\\" + "apikey.txt"
+    LOGFILE = LOGDIRECTORY + "\\" + "BTECIFY LOG-{0.tm_year:0>4}.{0.tm_mon:0>2}.{0.tm_mday:0>2}.{0.tm_hour:0>2}.{0.tm_min:0>2}.{0.tm_sec:0>2}.log".format(time.localtime())
+else:
+    DATADIRECTORY = "./testingdata"
+    LOGDIRECTORY = "./testingdata/Logs"
+    DATAFILE = DATADIRECTORY + "/" + "data.txt"
+    APIKEYFILE = DATADIRECTORY + "/" + "apikey.txt"
+    LOGFILE = LOGDIRECTORY + "/" + "BTECIFY LOG-{0.tm_year:0>4}.{0.tm_mon:0>2}.{0.tm_mday:0>2}.{0.tm_hour:0>2}.{0.tm_min:0>2}.{0.tm_sec:0>2}.log".format(time.localtime())
+
 
 # Creating all directories and files if they don't already exist.
 try:
-    os.mkdir(LOGDIRECTORY)  # Log directory is inside data direectory and also creates the logs folder so it is used here.
+    os.makedirs(LOGDIRECTORY)  # Log directory is inside data direectory and also creates the logs folder so it is used here.
 except FileExistsError:
     print(f"Directory {LOGDIRECTORY} already exists.")
 
@@ -270,7 +279,8 @@ class Player:
                 errcount += 1
                 print("Retrying...")
                 time.sleep(1)
-                if errcount > 4:
+                if errcount > 8:
+                    self.song = None
                     return False
             print("Attempting to play")
             if not self.play():
@@ -352,7 +362,7 @@ def savedata(stuff, cursave=None):
 
 def savelog(logs, savedlog):
     if logs != savedlog:
-        with open(LOGFILE, "w") as f:
+        with open(LOGFILE, "w", encoding='utf-8') as f:
             for log in logs:
                 logstr = ""
                 timevalues = log[0]
