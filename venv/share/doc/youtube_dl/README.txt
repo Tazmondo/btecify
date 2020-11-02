@@ -634,8 +634,8 @@ sequence type are:
 -   extractor (string): Name of the extractor
 -   extractor_key (string): Key name of the extractor
 -   epoch (numeric): Unix epoch when creating the file
--   autonumber (numeric): Five-digit number that will be increased with
-    each download, starting at zero
+-   autonumber (numeric): Number that will be increased with each
+    download, starting at --autonumber-start
 -   playlist (string): Name or id of the playlist that contains the
     video
 -   playlist_index (numeric): Index of the video in the playlist padded
