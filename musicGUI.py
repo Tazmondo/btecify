@@ -141,13 +141,24 @@ class Musicgui:
         consolewindow.wm_title("Console Logs")
         consolewindow.wm_protocol("WM_DELETE_WINDOW", lambda: consolewindow.wm_withdraw())
         consolewindow.wm_withdraw()
+        consolewindow.wm_resizable(False, False)
 
         consolewindowframe = ttk.Frame(consolewindow, padding=5, relief="groove")
         consolewindowframe.grid()
 
         consolewindowtext = tk.Text(consolewindowframe, foreground='white', background='black', state='disabled',
                                     width=100, height=40)
-        consolewindowtext.grid()
+        consolewindowtext.grid(row=0, column=0)
+
+        consolewindowtextscrollbar = ttk.Scrollbar(consolewindowframe, orient=tk.VERTICAL, command=consolewindowtext.yview)
+        consolewindowtext['yscrollcommand'] = consolewindowtextscrollbar.set
+        consolewindowtextscrollbar.grid(row=0, column=1, sticky='ns')
+
+        def resetconsolewindow(*args):
+            consolewindowtext.yview_moveto(1.0)
+        consolewindowtext.bind('<Visibility>', resetconsolewindow)
+        consolewindowtext.bind('<FocusIn>', resetconsolewindow)
+
 
         # MENU
         menubar = tk.Menu(root)
