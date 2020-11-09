@@ -1,2 +1,1 @@
-this program is really bad lol
-read code at your own peril
+written cause i was bored. it's not very good tbh but oh well i had fun writing it
