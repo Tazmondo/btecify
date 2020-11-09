@@ -7,7 +7,6 @@ import time
 from win10toast import ToastNotifier
 import os.path
 import sys
-from sys import exit
 import webbrowser
 import appdirs
 import musicGUI
@@ -604,8 +603,7 @@ def main():
                     G.songset.add(newsong)
 
             elif command == "EXIT":
-                print("Exiting...")
-                exit("Exited.")
+                break
 
             elif command == "resetfromyoutube" and len(inp) == 2:
                 targetpl = inp[1]
@@ -676,6 +674,7 @@ def main():
         cursave = savedata(saveinfo, cursave)
         savedlog = savelog(G.logs, savedlog)
         time.sleep(0.05)
+    print("Exiting program...")
 
 
 if __name__ == '__main__':

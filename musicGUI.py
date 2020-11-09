@@ -9,7 +9,6 @@ from tkinter import font as tkfont
 from tkinter import messagebox as mb
 from ttkthemes import ThemedTk
 import time
-from sys import exit
 
 PLAYINGINFOPLACEHOLDER = "-" * 75
 
@@ -118,7 +117,6 @@ class Musicgui:
 
         def _onclose():
             self.output = ["EXIT"]
-            exit("Closing GUI thread.")
             root.destroy()
 
         root.protocol("WM_DELETE_WINDOW", _onclose)
