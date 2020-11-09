@@ -105,7 +105,7 @@ class Musicgui:
 
         root = ThemedTk(theme='black')
         root.option_add('*tearOff', tk.FALSE)
-        root.wm_title("sPoTiFy")
+        root.wm_title("btecify")
         root.wm_iconbitmap('btecify.ico')
         root.resizable(width=False, height=False)
         root.wm_iconify()
