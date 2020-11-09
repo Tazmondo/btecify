@@ -107,8 +107,12 @@ class Song:
 
     @staticmethod
     def createsongfromurl(url: str):
-        song = pafy.new(url)
-        return Song(song.videoid, song.title, url, song.duration, song.author)
+        try:
+            song = pafy.new(url)
+            return Song(song.videoid, song.title, url, song.duration, song.author)
+        except ValueError as e:
+            print("INVALID SONG URL!!!", e)
+            return False
 
 
 class Playlist:
@@ -133,7 +137,11 @@ class Playlist:
         self.removedsongs = removedsongs
         self.name = name
         if autoupdate:
-            self.refreshplaylistfromyoutube()
+            try:
+                self.refreshplaylistfromyoutube()
+            except ValueError as e:
+                print("INVALID PLAYLIST URL!!!", e)
+                self.url = ""
         self.seensongs = set()
 
     def getqueue(self):
@@ -264,9 +272,6 @@ class Player:
                 print("yes")
                 self.playlist.seensongs = set()
                 self.queue = self.playlist.getqueue()
-                playinglist = self.songlist
-                random.shuffle(playinglist)
-                print(self.queue)
                 nextsong = self.queue.pop(0)
         else:
             self.manual = True
@@ -594,7 +599,9 @@ def main():
 
             elif command == "createsong" and len(inp) == 2:
                 url = inp[1]
-                G.songset.add(Song.createsongfromurl(url))
+                newsong = Song.createsongfromurl(url)
+                if newsong:
+                    G.songset.add(newsong)
 
             elif command == "EXIT":
                 print("Exiting...")
@@ -651,6 +658,16 @@ def main():
             elif command == "seek" and len(inp) == 2:
                 seekpercent = inp[1]
                 player.seek(seekpercent)
+
+            elif command == "deletesongs" and len(inp) > 1:
+                songs = inp[1:]
+
+                for song in songs:
+                    if song in G.songset:
+                        G.songset.remove(song)
+
+            elif command == "opendatadirectory" and len(inp) == 1:
+                os.startfile(DATADIRECTORY.replace("/", "\\"))
 
             gui.clearoutput()
 

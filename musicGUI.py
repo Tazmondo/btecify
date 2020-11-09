@@ -174,7 +174,7 @@ class Musicgui:
 
         menubar.add_separator()
 
-        menubar.add_command(label="Playlist: None")
+        menubar.add_command(label="Playlist: None", state="disabled")
         menubarplaylistlabelindex = len(menubar.winfo_children()) + 1
 
         menuplaylist.add_command(label="New...", command=self._newplaylist)
@@ -199,8 +199,8 @@ class Musicgui:
         menusong.add_command(label="Play random song", command=lambda: self._setoutput("randomsong"))
 
         menufile.add_command(label="Change API key", command=lambda: self._setoutput("newapikey"))
-        menufile.add_separator()
         menufile.add_command(label="View console logs", command=lambda: consolewindow.wm_deiconify())
+        menufile.add_command(label="Open data directory", command=lambda: self._setoutput("opendatadirectory"))
 
         # PRIMARY FRAME
 
@@ -372,8 +372,10 @@ class Musicgui:
                     songinfo['text'] = (f"{playlistofthissong}\n{self.playingsong.name[:len(PLAYINGINFOPLACEHOLDER)]}\n{self.playingsong.author}\n{self.playingsong.duration}\n" + PLAYINGINFOPLACEHOLDER)
                     if self.paused:
                         songdesc['text'] = "PAUSED"
+                        pausebutton['text'] = "PLAY"
                     else:
                         songdesc['text'] = "PLAYING"
+                        pausebutton['text'] = "PAUSE"
 
                 targetsong = self._getselectedsong()
                 if targetsong is not None:
@@ -544,10 +546,11 @@ class Musicgui:
         name = sd.askstring("PLAYLIST CREATION", "Enter a playlist name")
         url = sd.askstring("PLAYLIST CREATION", "Enter a url (optional)")
 
-        if url:
-            self._setoutput("addlist", [name, url])
-        else:
-            self._setoutput("addlist", [name])
+        if name and type(name) is str:
+            if url:
+                self._setoutput("addlist", [name, url])
+            else:
+                self._setoutput("addlist", [name])
 
     def _deleteplaylist(self):
         self._setoutput("removelist", [self._getselectedplaylist()])
@@ -649,8 +652,9 @@ class Musicgui:
         self._setoutput("resetfromyoutube", [self.selectedplaylist.get()])
 
     def _newsong(self):
-        url = sd.askstring("ADD A SONG","Enter the song url")
-        self._setoutput("createsong",[url])
+        url = sd.askstring("ADD A SONG", "Enter the song url")
+        if url:
+            self._setoutput("createsong", [url])
 
     def clearoutput(self):
         self._setoutput("")
