@@ -97,7 +97,8 @@ class Musicgui:
         'extrasonginfo': False,
         'playlistsongslist': False,
         'updatelogs': False,
-        'seeking': False
+        'seeking': False,
+        'keybinds': False
 
     }
 
@@ -133,6 +134,8 @@ class Musicgui:
         self.songsearchqueryvar = tk.StringVar(value="")
         self.extrainfoplaylistsvar = tk.StringVar(value=[])
         self.searchfunc = searchsongname
+        
+        self.keybinds: list[tuple[str, str]] = []
 
         # CONSOLE
         consolewindow = tk.Toplevel(root)
@@ -157,6 +160,46 @@ class Musicgui:
         consolewindowtext.bind('<Visibility>', resetconsolewindow)
         consolewindowtext.bind('<FocusIn>', resetconsolewindow)
 
+        # KEYBINDS
+        keybindwindow = tk.Toplevel(root)
+        keybindwindow.wm_title("Keybindings")
+        keybindwindow.wm_protocol("WM_DELETE_WINDOW", lambda: keybindwindow.wm_withdraw())
+        keybindwindow.wm_resizable(False, False)
+        keybindwindow.wm_withdraw()
+
+        keybindwindowframe = ttk.Frame(keybindwindow, padding=5, relief='groove')
+        keybindwindowframe.grid()
+
+        keybindlistframe = ttk.Frame(keybindwindowframe, padding=3, relief='groove')
+        keybindlistframe.grid(row=0, column=0)
+
+        keybindings = [i for i in defaults['keybinds']]
+        keybindlist = []
+        for x in range(len(keybindings)):
+            kbname = keybindings[x]
+            newframe = ttk.Frame(keybindlistframe)
+            newframe.grid(column=0, row=x)
+
+            newlabel = ttk.Label(newframe, text=kbname+": ", width=max(map(lambda a: len(a), keybindings))+2)
+            newlabel.grid(row=0, column=0)
+
+            keybindtextvariable = tk.StringVar("")
+            newentry = ttk.Entry(newframe, textvariable=keybindtextvariable)
+            newentry.grid(row=0, column=1)
+            newentry.bind('<FocusIn>', lambda *args: self._addchange('keybinds'))
+
+            keybindlist.append((kbname, keybindtextvariable))
+
+        keybindbuttonsframe = ttk.Frame(keybindwindowframe, padding=3, relief='groove')
+        keybindbuttonsframe.grid(row=1, column=0)
+
+        keybindbuttondefault = ttk.Button(keybindbuttonsframe, text="RESET TO DEFAULTS", command=lambda: self._setoutput("defaultkeybinds"))
+        keybindbuttondefault.grid(row=0, column=0)
+
+        keybindbuttonconfirm = ttk.Button(keybindbuttonsframe, text="CONFIRM KEYBINDINGS",
+                                          command=lambda: self._setoutput("updatekeybinds", (
+                                              [(i[0], i[1].get()) for i in keybindlist])))
+        keybindbuttonconfirm.grid(row=0, column=1)
 
         # MENU
         menubar = tk.Menu(root)
@@ -199,6 +242,7 @@ class Musicgui:
         menufile.add_command(label="Change API key", command=lambda: self._setoutput("newapikey"))
         menufile.add_command(label="View console logs", command=lambda: consolewindow.wm_deiconify())
         menufile.add_command(label="Open data directory", command=lambda: self._setoutput("opendatadirectory"))
+        menufile.add_command(label="Change keybinds", command=lambda: keybindwindow.wm_deiconify())
 
         # PRIMARY FRAME
 
@@ -421,7 +465,6 @@ class Musicgui:
                     self.displaysonglist = self.displaysonglistnew
                     self.displayplaylistsongs = self.displayplaylistsongsnew
 
-                    #self.completeselectedsongs.extend([i for i in currentlyselectedsonglistvalues if i not in self.completeselectedsongs])
                     songlist.selection_clear(0, 1000000)
                     queuelist.selection_clear(0, 1000000)
                     playlistsongslist.selection_clear(0, 10000)
@@ -492,6 +535,13 @@ class Musicgui:
                 val = self.seek.get()
                 if 0 < val < 1:
                     self._setoutput('seek', [self.seek.get()])
+            
+            if self.changes['keybinds']:
+                for kbset in keybindlist:
+                    for j in self.keybinds:
+                        if j[0] == kbset[0]:
+                            kbset[1].set(j[1])
+                self._addchange("keybinds", False)
 
             root.after(10, _updatebasedonvalues)
 
@@ -501,6 +551,7 @@ class Musicgui:
         root.mainloop()
 
     def _setoutput(self, command, params=(), wait=False):
+        print(command, params)
         if params is None:
             params = ()
         output = [command]
@@ -713,6 +764,10 @@ class Musicgui:
             self.newlogs = logs.copy()
             self._addchange('updatelogs')
 
+    def updatekeybinds(self, keybinds: list[tuple[str, str]]):
+        if keybinds != self.keybinds:
+            self.keybinds = keybinds
+            self._addchange("keybinds")
 
 def msgbox(title="", warning="Something happened!", inputtype=None):
     """

@@ -10,6 +10,7 @@ import sys
 import webbrowser
 import appdirs
 import musicGUI
+from pynput import keyboard as kb
 
 APIKEYLENGTH = 39
 
@@ -389,27 +390,35 @@ def searchsongname(targetlist: list[Song], targetvalue: str):
 
 
 def main():
-    saveinfo = {
+    defaults = {
         'songs': set(),
         'playlists': {
             'empty': Playlist("empty")
         },
         'options': {
-            'volume': 50
+            'volume': 50,
+            'keybinds': {
+                'pause': '<alt>+p',
+                'skip': '<alt>+s',
+            }
         },
         'playlistids': []
     }
     with open(DATAFILE, "rb") as file:
         try:
             loaddata: dict = pickle.load(file)
-            saveinfo.update(loaddata)
+            loaddata['options']['keybinds'].update(defaults['options']['keybinds'])
+            saveinfo = loaddata
         except EOFError:
             print("Could not retrieve data.")
+            saveinfo = defaults
     G.songset: set[Song] = saveinfo['songs']
     inp = ""
     playlists = saveinfo['playlists']
     playlists['empty'] = Playlist("empty")
     playlist: Playlist = playlists['empty']
+
+    keybinddict: dict[str: str] = saveinfo['options']['keybinds']
 
     print("List is up to date!")
 
@@ -429,28 +438,26 @@ def main():
     gui: musicGUI.Musicgui = musicGUI.G.musicgui
     print("Started GUI!")
 
+    def hotkeyfunction(hotkeyname):
+        def newfunction():
+            gui.output = hotkeyname
+        return newfunction
 
-    # while playlist is None:  # Playlist is set automatically to empty now...
-    #     inp = gui.output
-    #     if not gui.output[0]:
-    #         time.sleep(0.4)
-    #         continue
-    #     if inp[0] == "switchlist":
-    #         playlist = playlists[inp[1]]
-    #         playlist.refreshplaylistfromyoutube()
-    #         player.refreshplaylist(playlist)
-    #     elif inp[0] == "EXIT":
-    #         print("Closed window...")
-    #         exit("exiting")
-    #     elif inp[0] != "":
-    #         gui.clearoutput()
-    #     else:
-    #         pass
+    hotkeylistener = kb.GlobalHotKeys(
+        hotkeys={v: hotkeyfunction(k) for k, v in keybinddict.items()}
+    )
+    hotkeylistener.start()
+
+    def updatelistener(listener):
+        listener.stop()
+        newlistener = kb.GlobalHotKeys(
+            hotkeys={v: hotkeyfunction(k) for k, v in keybinddict.items()}
+        )
+        newlistener.start()
+        return newlistener
 
     cursave = savedata(saveinfo)
     savedlog = []
-    print("Selected first playlist.")
-    gui.clearoutput()
 
     def updategui():  # ORDER IS IMPORTANT!!!
         gui.updatecurrentplaylist(playlist)
@@ -460,6 +467,7 @@ def main():
         gui.updateprogressbar(int(player.getpos() * 100))
         gui.updateplaylists(playlists.values())
         gui.updatelogs(G.logs)
+        gui.updatekeybinds(list(keybinddict.items()))
 
     def retrievelogs():
         logs = musicGUI.G.logs.copy()
@@ -638,9 +646,13 @@ def main():
                 key = ""
                 while len(key) != APIKEYLENGTH:
                     key = musicGUI.msgbox("API Key", "Enter a new api key", str)
-                pafy.set_api_key(key)
-                with open(APIKEYFILE, "w") as f:
-                    f.write(key)
+                    if not key:
+                        key = ""
+                        break
+                if key:
+                    pafy.set_api_key(key)
+                    with open(APIKEYFILE, "w") as f:
+                        f.write(key)
 
             elif command == "randomsong" and len(inp) == 1:
                 song = random.choice(list(G.songset))
@@ -667,6 +679,22 @@ def main():
             elif command == "opendatadirectory" and len(inp) == 1:
                 os.startfile(DATADIRECTORY.replace("/", "\\"))
 
+            elif command == "defaultkeybinds" and len(inp) == 1:
+                keybinddict.update(defaults['options']['keybinds'])
+                updatelistener(hotkeylistener)
+
+            elif command == "updatekeybinds" and len(inp) >= 2:
+                old = keybinddict.copy()
+                kbupdate = inp[1:]
+                for j in kbupdate:
+                    keybinddict[j[0]] = j[1]
+                try:
+                    updatelistener(hotkeylistener)
+                except ValueError:
+                    keybinddict = old
+                    musicGUI.msgbox("Keybind", "Bad keybind format. Default format: '<A>+B'\nA is alt, ctrl, or shift\nB is any letter or number.", "Error")
+                pass
+
             gui.clearoutput()
 
         G.logs.extend(retrievelogs())
@@ -678,4 +706,10 @@ def main():
 
 
 if __name__ == '__main__':
+    with open(DATAFILE, "rb") as f:
+        obj: dict = pickle.load(f)
+    if not obj['options'].get('keybinds'):
+        obj['options']['keybinds'] = {}
+    with open(DATAFILE, "wb") as f:
+        pickle.dump(obj, f)
     main()
