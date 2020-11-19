@@ -1,4 +1,4 @@
-#!"c:\users\tazmondo\desktop\programming projects\projects\music\venv\scripts\python.exe"
+#!"C:\Users\Tazmondo\Desktop\Programming projects\Projects\Python\Music\venv\Scripts\python.exe"
 # EASY-INSTALL-ENTRY-SCRIPT: 'cx-Freeze==6.3','console_scripts','cxfreeze-quickstart'
 import re
 import sys
