@@ -36,6 +36,12 @@ except AttributeError:
 ICON = "btecify.ico"
 APPNAME = "btecify"
 TESTINGMODE = False
+VERSION = ""
+try:
+    with open("version.txt", "r") as f:
+        VERSION = f.read()
+except Exception:
+    VERSION = "Version not found, please let me know if you see this!"
 
 if not TESTINGMODE:
     DATADIRECTORY = appdirs.user_data_dir(APPNAME, appauthor=False)
@@ -407,7 +413,8 @@ def main():
     with open(DATAFILE, "rb") as file:
         try:
             loaddata: dict = pickle.load(file)
-            loaddata['options']['keybinds'].update(defaults['options']['keybinds'])
+            if not loaddata['options']['keybinds']:
+                loaddata['options']['keybinds'] = defaults['options']['keybinds']
             saveinfo = loaddata
         except EOFError:
             print("Could not retrieve data.")
