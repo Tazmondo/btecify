@@ -11,6 +11,8 @@ import webbrowser
 import appdirs
 import musicGUI
 from pynput import keyboard as kb
+import pypresence
+import semantic_version as semver
 
 APIKEYLENGTH = 39
 
@@ -36,12 +38,9 @@ except AttributeError:
 ICON = "btecify.ico"
 APPNAME = "btecify"
 TESTINGMODE = False
-VERSION = ""
-try:
-    with open("version.txt", "r") as f:
-        VERSION = f.read()
-except Exception:
-    VERSION = "Version not found, please let me know if you see this!"
+if os.path.isfile("test"):
+    TESTINGMODE = True
+VERSION = "1.2.0"
 
 if not TESTINGMODE:
     DATADIRECTORY = appdirs.user_data_dir(APPNAME, appauthor=False)
@@ -93,6 +92,10 @@ except (FileNotFoundError, ValueError) as e:
 
 pafy.set_api_key(APIKEY)
 BROWSER = webbrowser.get("C:/Program Files (x86)/Google/Chrome/Application/chrome.exe %s")
+
+CLIENTID = '783393560506531882'
+POLLRATE = 0.05
+RPCRATE = 17 // POLLRATE
 
 
 class Song:
@@ -336,6 +339,12 @@ class Player:
             return True
         return False
 
+    def getstart(self):
+        return time.time() - (self.musicplayer.get_time() // 1000)
+
+    def getend(self):
+        return self.getstart() + (self.musicplayer.get_length() // 1000)
+
 
 class GlobalVars:
     pass
@@ -406,7 +415,8 @@ def main():
             'keybinds': {
                 'pause': '<alt>+p',
                 'skip': '<alt>+s',
-            }
+            },
+            'discord': True
         },
         'playlistids': []
     }
@@ -424,9 +434,9 @@ def main():
     playlists = saveinfo['playlists']
     playlists['empty'] = Playlist("empty")
     playlist: Playlist = playlists['empty']
+    options = saveinfo['options']
 
-    keybinddict: dict[str: str] = saveinfo['options']['keybinds']
-
+    keybinddict: dict[str: str] = options['keybinds']
     print("List is up to date!")
 
     # curplayerthread = threading.Thread(target=Player, daemon=False, args=[playlist.songs, generateplaylist(playlist)])
@@ -435,10 +445,10 @@ def main():
     #     pass
     # player = G.player
     player = Player(playlist)
-    player.setvolume(saveinfo['options']['volume'])
+    player.setvolume(options['volume'])
     print("Created sound player.")
 
-    guithread = threading.Thread(target=musicGUI.Musicgui, args=[list(playlists.values()), saveinfo['options']])
+    guithread = threading.Thread(target=musicGUI.Musicgui, args=[list(playlists.values()), options])
     guithread.start()
     while musicGUI.G.musicgui is None:
         pass
@@ -465,6 +475,43 @@ def main():
 
     cursave = savedata(saveinfo)
     savedlog = []
+
+    rpc = None
+    rpccount = 0
+
+    def updatepresence(irpc):
+        try:
+            if options['discord']:
+                if not irpc:
+                    irpc = pypresence.Presence(CLIENTID)
+                    irpc.connect()
+                args = {
+                    'large_image': 'btecify1024',
+                    'large_text': APPNAME
+                }
+                if player.song:
+                    args['details'] = f"{player.song.name} | {player.song.author}"
+                    if player.paused:
+                        args['state'] = "Paused"
+                    else:
+                        args['state'] = "Playing"
+                        args['start'] = int(player.getstart())
+                        args['end'] = int(player.getend())
+
+                else:
+                    args['state'] = "Stopped"
+
+                irpc.update(**args)
+                return irpc
+
+            elif not options['discord']:
+                irpc.close()
+                return None
+
+        except (pypresence.InvalidID, pypresence.InvalidPipe, RuntimeError, Exception) as e:
+            print(e)
+            print("Discord not found or presence failed.")
+            return None
 
     def updategui():  # ORDER IS IMPORTANT!!!
         gui.updatecurrentplaylist(playlist)
@@ -516,7 +563,7 @@ def main():
                 if len(inp) > 1:
                     value = inp[1]
                     player.setvolume(value)
-                    saveinfo['options']['volume'] = value
+                    options['volume'] = value
                     print(f"Setting volume to {value}%")
                 else:
                     print(f"Volume: {player.getvolume()}")
@@ -702,10 +749,17 @@ def main():
                     musicGUI.msgbox("Keybind", "Bad keybind format. Default format: '<A>+B'\nA is alt, ctrl, or shift\nB is any letter or number.", "Error")
                 pass
 
+            elif command == "discordpresence" and len(inp) == 2:
+                options['discord'] = inp[1]
+
             gui.clearoutput()
 
         G.logs.extend(retrievelogs())
         updategui()
+        rpccount += 1
+        if rpccount == RPCRATE:
+            rpc = updatepresence(rpc)
+            rpccount = 0
         cursave = savedata(saveinfo, cursave)
         savedlog = savelog(G.logs, savedlog)
         time.sleep(0.05)
@@ -713,10 +767,24 @@ def main():
 
 
 if __name__ == '__main__':
+
+
     with open(DATAFILE, "rb") as f:
         obj: dict = pickle.load(f)
-    if not obj['options'].get('keybinds'):
-        obj['options']['keybinds'] = {}
+
+    if not obj['options'].get("version"):
+        obj['options']['version'] = semver.Version('0.0.0')
+
+    cver = obj['options']['version']
+    if cver < semver.Version('1.1.0'):
+        if not obj['options'].get('keybinds'):
+            obj['options']['keybinds'] = {}
+
+    if cver < semver.Version('1.2.0'):
+        obj['options']['discord'] = True
+
+    obj['options']['version'] = semver.Version(VERSION)
+
     with open(DATAFILE, "wb") as f:
         pickle.dump(obj, f)
     main()

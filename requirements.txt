@@ -6,10 +6,11 @@ pafy==0.5.5
 Pillow==8.0.1
 pynput==1.7.1
 pypiwin32==223
+pypresence==4.0.0
 python-vlc==3.0.11115
 pywin32==228
 six==1.15.0
 ttkthemes==3.1.1
 win10toast-withsound==0.9
-youtube-dl==2020.11.1.1
+youtube-dl==2020.12.2
 zipp==3.4.0

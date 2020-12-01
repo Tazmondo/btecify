@@ -134,6 +134,7 @@ class Musicgui:
         self.songsearchqueryvar = tk.StringVar(value="")
         self.extrainfoplaylistsvar = tk.StringVar(value=[])
         self.searchfunc = searchsongname
+        self.discordpresencevar = tk.BooleanVar(value=defaults['discord'])
         
         self.keybinds: list[tuple[str, str]] = []
 
@@ -243,6 +244,10 @@ class Musicgui:
         menufile.add_command(label="View console logs", command=lambda: consolewindow.wm_deiconify())
         menufile.add_command(label="Open data directory", command=lambda: self._setoutput("opendatadirectory"))
         menufile.add_command(label="Change keybinds", command=lambda: keybindwindow.wm_deiconify())
+
+        menufile.add_checkbutton(label="Discord Presence",
+                                 command=lambda: self._setoutput('discordpresence', [self.discordpresencevar.get()]),
+                                 variable=self.discordpresencevar)
 
         # PRIMARY FRAME
 
@@ -551,7 +556,8 @@ class Musicgui:
         root.mainloop()
 
     def _setoutput(self, command, params=(), wait=False):
-        print(command, params)
+        if command != 'volume' and command != "seek":
+            print(command, params)
         if params is None:
             params = ()
         output = [command]
