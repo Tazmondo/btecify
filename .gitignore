@@ -21,3 +21,4 @@
 /venv/Include/libvlc.dll
 /test
 /venv/
+/__pycache__/
