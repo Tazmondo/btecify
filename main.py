@@ -40,7 +40,7 @@ APPNAME = "btecify"
 TESTINGMODE = False
 if os.path.isfile("test"):
     TESTINGMODE = True
-VERSION = "1.2.0"
+VERSION = "1.2.1"
 
 if not TESTINGMODE:
     DATADIRECTORY = appdirs.user_data_dir(APPNAME, appauthor=False)
