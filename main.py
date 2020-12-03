@@ -67,7 +67,9 @@ for savefile in (DATAFILE, APIKEYFILE, LOGFILE):
         with open(savefile, "r"):
             pass
     except FileNotFoundError:
-        with open(savefile, "w"):
+        with open(savefile, "w") as f:
+            if savefile == DATAFILE:
+                pickle.dump({}, f)
             pass
 
 APIKEY = ""
@@ -767,24 +769,25 @@ def main():
 
 
 if __name__ == '__main__':
+    try:
+        with open(DATAFILE, "rb") as f:
+            obj: dict = pickle.load(f)
 
+        if not obj['options'].get("version"):
+            obj['options']['version'] = semver.Version('0.0.0')
 
-    with open(DATAFILE, "rb") as f:
-        obj: dict = pickle.load(f)
+        cver = obj['options']['version']
+        if cver < semver.Version('1.1.0'):
+            if not obj['options'].get('keybinds'):
+                obj['options']['keybinds'] = {}
 
-    if not obj['options'].get("version"):
-        obj['options']['version'] = semver.Version('0.0.0')
+        if cver < semver.Version('1.2.0'):
+            obj['options']['discord'] = True
 
-    cver = obj['options']['version']
-    if cver < semver.Version('1.1.0'):
-        if not obj['options'].get('keybinds'):
-            obj['options']['keybinds'] = {}
+        obj['options']['version'] = semver.Version(VERSION)
 
-    if cver < semver.Version('1.2.0'):
-        obj['options']['discord'] = True
-
-    obj['options']['version'] = semver.Version(VERSION)
-
-    with open(DATAFILE, "wb") as f:
-        pickle.dump(obj, f)
+        with open(DATAFILE, "wb") as f:
+            pickle.dump(obj, f)
+    except Exception:
+        pass
     main()
