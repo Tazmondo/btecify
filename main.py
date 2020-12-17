@@ -5,6 +5,7 @@ import sys
 import threading
 import time
 import webbrowser
+import pathlib
 
 import appdirs
 import pafy
@@ -40,7 +41,7 @@ except AttributeError:
 ICON = "btecify.ico"
 APPNAME = "btecify"
 TESTINGMODE = False
-if os.path.isfile("test"):
+if os.path.isfile("testingmodedetectionfile"):
     TESTINGMODE = True
 VERSION = "1.2.1"
 
@@ -57,7 +58,6 @@ else:
     APIKEYFILE = DATADIRECTORY + "/" + "apikey.txt"
     LOGFILE = LOGDIRECTORY + "/" + "BTECIFY LOG-{0.tm_year:0>4}.{0.tm_mon:0>2}.{0.tm_mday:0>2}.{0.tm_hour:0>2}.{0.tm_min:0>2}.{0.tm_sec:0>2}.log".format(time.localtime())
 
-
 # Creating all directories and files if they don't already exist.
 try:
     os.makedirs(LOGDIRECTORY)  # Log directory is inside data direectory and also creates the logs folder so it is used here.
@@ -73,6 +73,11 @@ for savefile in (DATAFILE, APIKEYFILE, LOGFILE):
             if savefile == DATAFILE:
                 pickle.dump({}, f)
             pass
+
+# Deleting log files beyond the last 10 to stop them from piling up
+logpath = pathlib.Path(LOGDIRECTORY).absolute()
+for i in list(logpath.iterdir())[:-10]:  # All log files except most recent 5
+    i.unlink()
 
 APIKEY = ""
 try:
