@@ -1,5 +1,7 @@
 from __future__ import annotations
+
 from typing import TYPE_CHECKING
+
 if TYPE_CHECKING:
     from main import Song, Playlist
 import tkinter as tk
@@ -12,8 +14,11 @@ import time
 
 PLAYINGINFOPLACEHOLDER = "-" * 75
 
+
 class globalvars:
     pass
+
+
 G = globalvars()
 G.logs = []
 
@@ -23,6 +28,7 @@ oldprint = print
 def print(*args, **kwargs):
     oldprint(*args, **kwargs)
     G.logs.append((time.localtime(), args))
+
 
 def searchsongname(targetlist: list[Song], targetvalue: str):
     targetlist = targetlist.copy()
@@ -336,7 +342,7 @@ class Musicgui:
         songlistnotebook.add(playlistsongsframe, text="empty")
 
         # BOTTOM LEFT LOGO
-        btecifyiconimage = tk.PhotoImage(file="btecify64.png")
+        btecifyiconimage = tk.PhotoImage(file="assets/btecify64.png")
         btecifyiconlabel = ttk.Label(primaryframe, image=btecifyiconimage)
         btecifyiconlabel.grid(column=0, row=2, sticky='ws')
 

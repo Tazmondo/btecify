@@ -1,18 +1,20 @@
-import vlc
-import pafy
-import pickle
-import threading
-import random
-import time
-from win10toast import ToastNotifier
 import os.path
+import pickle
+import random
 import sys
+import threading
+import time
 import webbrowser
+
 import appdirs
-import musicGUI
-from pynput import keyboard as kb
+import pafy
 import pypresence
 import semantic_version as semver
+import vlc
+from pynput import keyboard as kb
+from win10toast import ToastNotifier
+
+import musicGUI
 
 APIKEYLENGTH = 39
 

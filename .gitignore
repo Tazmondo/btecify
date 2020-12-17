@@ -1,24 +1,15 @@
 /.idea
-/programinfo.txt
 /test.py
 /testing.txt
 /test2.py
-/data.txt
-/song plan.png
-/launch.bat
-/launchsilent.bat
 /launch_con.bat
 /launch_silent.bat
 /todo.txt
-/main.spec
 /build/
 /dist/
-/cmdvenv.bat
 /setup.py
-/DATA.lnk
 /testingdata/
 /build.bat
-/venv/Include/libvlc.dll
-/test
+/testingmodedetectionfile
 /venv/
 /__pycache__/
