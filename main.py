@@ -514,7 +514,8 @@ def main():
                 return irpc
 
             elif not options['discord']:
-                irpc.close()
+                if irpc:
+                    irpc.close()
                 return None
 
         except (pypresence.InvalidID, pypresence.InvalidPipe, RuntimeError, Exception) as e:
