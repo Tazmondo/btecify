@@ -38,7 +38,7 @@ except AttributeError:
     sys.__stderr__ = DummyStream()
     sys.__stdin__ = DummyStream()
 
-ICON = "btecify.ico"
+ICON = "assets\\btecify.ico"
 APPNAME = "btecify"
 TESTINGMODE = False
 if os.path.isfile("testingmodedetectionfile"):
