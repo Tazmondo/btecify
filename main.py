@@ -7,6 +7,7 @@ import time
 import webbrowser
 import pathlib
 
+import requests
 import appdirs
 import pafy
 import pypresence
@@ -43,6 +44,10 @@ APPNAME = "btecify"
 TESTINGMODE = False
 if os.path.isfile("testingmodedetectionfile"):
     TESTINGMODE = True
+if TESTINGMODE:
+    SERVERURL = "http://127.0.0.1:5000"
+else:
+    pass  # TODO: Add behaviour for when server is not local.
 VERSION = "1.2.1"
 
 if not TESTINGMODE:
@@ -123,8 +128,8 @@ class Song:
         self.author = author
         self.blacklist = blacklist
 
-    @staticmethod
-    def createsongfromurl(url: str):
+    @classmethod
+    def createsongfromurl(cls, url: str):
         try:
             song = pafy.new(url)
             return Song(song.videoid, song.title, url, song.duration, song.author)
@@ -424,6 +429,10 @@ def main():
             'keybinds': {
                 'pause': '<alt>+p',
                 'skip': '<alt>+s',
+            'auth': {
+                'username': None,
+                # todo: add parameter for cookie/auth key/whatever
+            }
             },
             'discord': True
         },
@@ -538,8 +547,12 @@ def main():
         for log in logs:  # Trying to be more thread-safe and stuff idk
             musicGUI.G.logs.remove(log)
         return logs
-
     updategui()
+
+    # WEBSERVER STUFF #
+    session = requests.session()
+
+
     while True:
         if player.finished() and playlist and len(playlist.getsongs()) > 0:
             while not player.nextsong():
@@ -761,6 +774,9 @@ def main():
 
             elif command == "discordpresence" and len(inp) == 2:
                 options['discord'] = inp[1]
+
+            elif command == "syncwithserver":
+                pass  # TODO: Finish this
 
             gui.clearoutput()
 
