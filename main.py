@@ -44,11 +44,7 @@ APPNAME = "btecify"
 TESTINGMODE = False
 if os.path.isfile("testingmodedetectionfile"):
     TESTINGMODE = True
-if TESTINGMODE:
-    SERVERURL = "http://127.0.0.1:5000"
-else:
-    pass  # TODO: Add behaviour for when server is not local.
-VERSION = "1.2.1"
+VERSION = "1.3.0"
 
 if not TESTINGMODE:
     DATADIRECTORY = appdirs.user_data_dir(APPNAME, appauthor=False)
@@ -62,6 +58,19 @@ else:
     DATAFILE = DATADIRECTORY + "/" + "data.txt"
     APIKEYFILE = DATADIRECTORY + "/" + "apikey.txt"
     LOGFILE = LOGDIRECTORY + "/" + "BTECIFY LOG-{0.tm_year:0>4}.{0.tm_mon:0>2}.{0.tm_mday:0>2}.{0.tm_hour:0>2}.{0.tm_min:0>2}.{0.tm_sec:0>2}.log".format(time.localtime())
+
+
+class ServerUrls:
+    if TESTINGMODE:
+        home = "http://127.0.0.1:5000"
+    else:
+        home = "http://btecify.ddns.net:5000"
+        pass  # TODO: Add behaviour for when server is not local.
+
+    testauth = home + '/testauth'
+    auth = home + '/authenticate'
+    playlist = home + '/playlist'
+
 
 # Creating all directories and files if they don't already exist.
 try:
@@ -136,6 +145,14 @@ class Song:
         except ValueError as e:
             print("INVALID SONG URL!!!", e)
             return False
+
+    def tojsonformat(self):
+        return dict(
+            songname=self.name,
+            songurl=self.url,
+            duration=self.duration,
+            author=self.author
+        )
 
 
 class Playlist:
@@ -216,6 +233,10 @@ class Playlist:
         self.addedsongs = set()
         self.removedsongs = set()
 
+    def tojsonformat(self):
+        data = {'playlistname': self.name, 'songs': list(map(lambda a: a.tojsonformat(), self.getsongs()))}
+        return data
+
 
 class Player:
     song: Song = None
@@ -292,7 +313,6 @@ class Player:
             if len(self.queue) > 0:
                 nextsong = self.queue.pop(0)
             else:
-                print("yes")
                 self.playlist.seensongs = set()
                 self.queue = self.playlist.getqueue()
                 nextsong = self.queue.pop(0)
@@ -431,7 +451,7 @@ def main():
                 'skip': '<alt>+s',
             'auth': {
                 'username': None,
-                # todo: add parameter for cookie/auth key/whatever
+                'password': None
             }
             },
             'discord': True
@@ -452,7 +472,7 @@ def main():
     playlists = saveinfo['playlists']
     playlists['empty'] = Playlist("empty")
     playlist: Playlist = playlists['empty']
-    options = saveinfo['options']
+    options: dict[[dict, str]] = saveinfo['options']
 
     keybinddict: dict[str: str] = options['keybinds']
     print("List is up to date!")
@@ -551,7 +571,6 @@ def main():
 
     # WEBSERVER STUFF #
     session = requests.session()
-
 
     while True:
         if player.finished() and playlist and len(playlist.getsongs()) > 0:
@@ -775,8 +794,53 @@ def main():
             elif command == "discordpresence" and len(inp) == 2:
                 options['discord'] = inp[1]
 
+            elif command == "logindetails" and len(inp) == 3:
+                user, passw = inp[1], inp[2]
+                if user and passw:
+                    options['auth']['username'] = user
+                    options['auth']['password'] = passw
+                    try:
+                        r = session.post(ServerUrls.auth, json=options['auth'])
+                        if r.status_code == 200:
+                            musicGUI.msgbox("Success!", "Authentication successful.")
+                        else:
+                            musicGUI.msgbox("Bad Auth", f"Authentication unsuccessful. Please make a new username and password. Code: {r.status_code}", "Error")
+                    except requests.exceptions.ConnectionError:
+                        musicGUI.msgbox("No server", "btecify servers are offline.", "Error")
+
             elif command == "syncwithserver":
-                pass  # TODO: Finish this
+                try:
+                    isloggedin = session.get(ServerUrls.testauth).status_code != 401
+                    if not isloggedin:
+                        if all([i in options['auth'] for i in ['username', 'password']]):
+                            r = session.post(ServerUrls.auth, json=options['auth'])
+                            if r.status_code == 422:
+                                musicGUI.msgbox("Bad Auth", "Invalid username. Set a new username.", "Error")
+                            elif r.status_code == 401:
+                                musicGUI.msgbox("Bad Auth", "Invalid password. Set a new password.", "Error")
+                            elif r.status_code == 200:
+                                musicGUI.msgbox("Successful", "Authentication was successful... Syncing...")
+                                isloggedin = True
+                            else:
+                                raise Exception("Should never be reached.")
+                        else:
+                            musicGUI.msgbox("Bad Auth", "Username and/or password have not been set. Please set them before attempting to sync."
+                                                        "If you need an account, please contact Taran 😀", "Error")
+
+                    if isloggedin:
+                        jsondata = []
+                        for pl in playlists.values():
+                            jsondata.append(pl.tojsonformat())
+
+                        r = session.post(ServerUrls.playlist, json=jsondata)
+                        if r.status_code != 200:
+                            musicGUI.msgbox("Error", f"There was an error! Code: {r.status_code}", "Error")
+                        else:
+                            musicGUI.msgbox("Success", "The request to the server was successful. Your playlists can be fetched from btecify servers.")
+
+                except requests.exceptions.ConnectionError:
+                    print("Unable to connect.")
+                    musicGUI.msgbox("Server offline", "It appears that the btecify servers are offline... Please try again later.")
 
             gui.clearoutput()
 
@@ -807,6 +871,9 @@ if __name__ == '__main__':
 
         if cver < semver.Version('1.2.0'):
             obj['options']['discord'] = True
+
+        if cver < semver.Version('1.3.0'):
+            obj['options']['auth'] = {'username': None, 'password': None}
 
         obj['options']['version'] = semver.Version(VERSION)
 

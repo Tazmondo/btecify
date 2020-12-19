@@ -204,8 +204,7 @@ class Musicgui:
         keybindbuttondefault.grid(row=0, column=0)
 
         keybindbuttonconfirm = ttk.Button(keybindbuttonsframe, text="CONFIRM KEYBINDINGS",
-                                          command=lambda: self._setoutput("updatekeybinds", (
-                                              [(i[0], i[1].get()) for i in keybindlist])))
+                                          command=lambda: self._setoutput("updatekeybinds", [(i[0], i[1].get()) for i in keybindlist]))
         keybindbuttonconfirm.grid(row=0, column=1)
 
         # MENU
@@ -236,24 +235,28 @@ class Musicgui:
         menuplaylist.add_command(label="Reset from Youtube", command=self._resetfromyoutube)
 
         menusong.add_command(label="New...", command=self._newsong)
-        menusong.add_command(label="Delete", command=lambda: self._setoutput("deletesongs", self._getselectedsongs()))
+        menusong.add_command(label="Delete", command=lambda: self._setoutput("deletesongs", *self._getselectedsongs()))
         menusong.add_separator()
         menusong.add_command(label="Add selected songs to selected playlist", command=self._addsongtoplaylist)
         menusong.add_command(label="Remove selected songs from selected playlist",
-                             command=lambda: self._setoutput("removesongsfromplaylist",
-                                                             [self._getselectedplaylist(), self._getselectedsongs()]))
+                             command=lambda: self._setoutput("removesongsfromplaylist", self._getselectedplaylist(), self._getselectedsongs()))
         menusong.add_separator()
         menusong.add_command(label="Play selected song", command=self._playselectedsong)
         menusong.add_command(label="Play random song", command=lambda: self._setoutput("randomsong"))
 
-        menufile.add_command(label="Change API key", command=lambda: self._setoutput("newapikey"))
-        menufile.add_command(label="View console logs", command=lambda: consolewindow.wm_deiconify())
-        menufile.add_command(label="Open data directory", command=lambda: self._setoutput("opendatadirectory"))
-        menufile.add_command(label="Change keybinds", command=lambda: keybindwindow.wm_deiconify())
-
+        menufile.add_command(label="View console logs...", command=consolewindow.wm_deiconify)
+        menufile.add_command(label="Open data directory...", command=lambda: self._setoutput("opendatadirectory"))
+        menufile.add_separator()
+        menufile.add_command(label="Change keybinds...", command=keybindwindow.wm_deiconify)
+        menufile.add_separator()
         menufile.add_checkbutton(label="Discord Presence",
-                                 command=lambda: self._setoutput('discordpresence', [self.discordpresencevar.get()]),
+                                 command=lambda: self._setoutput('discordpresence', self.discordpresencevar.get()),
                                  variable=self.discordpresencevar)
+        menufile.add_separator()
+        menufile.add_command(label="Change API key...", command=lambda: self._setoutput("newapikey"))
+        menufile.add_separator()
+        menufile.add_command(label="Login Details...", command=self._logindetails)
+        menufile.add_command(label="Sync playlist to btecify servers", command=lambda: self._setoutput("syncwithserver"))
 
         # PRIMARY FRAME
 
@@ -407,7 +410,7 @@ class Musicgui:
         extrasonginforemovebutton = ttk.Button(extrasonginfobuttonsframe, text="REMOVE SONG FROM PLAYLISTS", command=self._extrasonginforemovebuttonfunc)
         extrasonginforemovebutton.grid(row=0, column=0, sticky='')
 
-        extrasonginfoopensong = ttk.Button(extrasonginfobuttonsframe, text="OPEN IN YOUTUBE", command=lambda: self._setoutput("openinyoutube", [[*self.completeselectedsongs] or [self._getselectedsong()]]))
+        extrasonginfoopensong = ttk.Button(extrasonginfobuttonsframe, text="OPEN IN YOUTUBE", command=lambda: self._setoutput("openinyoutube", [*self.completeselectedsongs] or [self._getselectedsong()]))
         extrasonginfoopensong.grid(row=1, column=0, sticky='')
 
         def _updatebasedonvalues():
@@ -545,7 +548,7 @@ class Musicgui:
             if self.changes['seeking']:
                 val = self.seek.get()
                 if 0 < val < 1:
-                    self._setoutput('seek', [self.seek.get()])
+                    self._setoutput('seek', self.seek.get())
             
             if self.changes['keybinds']:
                 for kbset in keybindlist:
@@ -561,17 +564,28 @@ class Musicgui:
         G.musicgui = self
         root.mainloop()
 
-    def _setoutput(self, command, params=(), wait=False):
+    def _setoutput(self, command, *params, wait=False):
         if command != 'volume' and command != "seek":
-            print(command, params)
-        if params is None:
-            params = ()
+            print(command, "params:", params)
+
         output = [command]
         output.extend(params)
         self.output = output
         if wait:
             while self.output != ['']:
                 time.sleep(0.01)
+
+    # def old(self, command, params=(), wait=False):  # was _setoutput
+    #     if command != 'volume' and command != "seek":
+    #         print(command, params)
+    #     if params is None:
+    #         params = ()
+    #     output = [command]
+    #     output.extend(params)
+    #     self.output = output
+    #     if wait:
+    #         while self.output != ['']:
+    #             time.sleep(0.01)
 
     def _skip(self, *args):
         if not self.output[0]:
@@ -583,7 +597,7 @@ class Musicgui:
 
     def _extrasonginforemovebuttonfunc(self, *args):
         if not self.output[0]:
-            self._setoutput("removesongfromplaylists", [self._getselectedsong(), self.extraplaylistselection], True)
+            self._setoutput("removesongfromplaylists", self._getselectedsong(), self.extraplaylistselection, True)
             self._addchange("songinfo")
 
     def _pause(self, *args):
@@ -592,12 +606,12 @@ class Musicgui:
 
     def _playerremovesongbutton(self, *args):
         if not self.output[0]:
-            self._setoutput("blacklist", [self.playingsong], True)
+            self._setoutput("blacklist", self.playingsong, wait=True)
             self._addchange('songinfo')
 
     def _chooseplaylist(self, *args):
         if not self.output[0]:
-            self._setoutput("switchlist", [self.selectedplaylist.get()])
+            self._setoutput("switchlist", self.selectedplaylist.get())
 
     def _playlistcomboboxvalueupdated(self, *args):
         self._addchange('playlistcomboboxupdate')
@@ -609,28 +623,28 @@ class Musicgui:
 
         if name and type(name) is str:
             if url:
-                self._setoutput("addlist", [name, url])
+                self._setoutput("addlist", name, url)
             else:
-                self._setoutput("addlist", [name])
+                self._setoutput("addlist", name)
 
     def _deleteplaylist(self):
-        self._setoutput("removelist", [self._getselectedplaylist()])
+        self._setoutput("removelist", self._getselectedplaylist())
 
     def _renameplaylist(self):
         name = sd.askstring("PLAYLIST RENAME", "Enter a playlist name")
-        self._setoutput("renameplaylist", [self._getselectedplaylist(), name])
+        self._setoutput("renameplaylist", self._getselectedplaylist(), name)
 
     def _copyplaylist(self):
-        self._setoutput("copyplaylist", [
-            self._getselectedplaylist(),
-            sd.askstring("PLAYLIST COPY", "Enter a playlist name")
-        ])
+        self._setoutput("copyplaylist",
+                        self._getselectedplaylist(),
+                        sd.askstring("PLAYLIST COPY", "Enter a playlist name")
+                        )
 
     def _volchange(self, *args):
         if self.output[0] in ('volume', ''):
             volume = self.volume.get()
             if volume != self.lastvol:
-                self._setoutput("volume", [volume])
+                self._setoutput("volume", volume)
 
     def _addchange(self, key, value=True):
         self.changes[key] = value
@@ -655,7 +669,7 @@ class Musicgui:
         self._setoutput("requeue")
 
     def _unwatchplaylist(self):
-        self._setoutput("unwatch", [self.selectedplaylist.get()])
+        self._setoutput("unwatch", self.selectedplaylist.get())
 
     def _songlistsearchchanged(self, why=None):
         if why == 'focusin':
@@ -686,7 +700,7 @@ class Musicgui:
         targetpl = self._getselectedplaylist()
         if targetpl:
             params = [targetpl]
-            self._setoutput("addsong", params + self._getselectedsongs(), True)
+            self._setoutput("addsong", *(params + self._getselectedsongs()), wait=True)
             self._addchange("songinfo")
 
     def _getsongfromname(self, name):
@@ -707,15 +721,21 @@ class Musicgui:
     def _playselectedsong(self):
         if len(self.completeselectedsongs) >= 1:
             song = self.completeselectedsongs[-1]
-            self._setoutput("song", [song])
+            self._setoutput("song", song)
 
     def _resetfromyoutube(self):
-        self._setoutput("resetfromyoutube", [self.selectedplaylist.get()])
+        self._setoutput("resetfromyoutube", self.selectedplaylist.get())
 
     def _newsong(self):
         url = sd.askstring("ADD A SONG", "Enter the song url")
         if url:
-            self._setoutput("createsong", [url])
+            self._setoutput("createsong", url)
+
+    def _logindetails(self):
+        username = msgbox("Login", "Enter a username", str)
+        password = msgbox("Login", "Enter a password", str)
+        if username and password:
+            self._setoutput("logindetails", username, password)
 
     def clearoutput(self):
         self._setoutput("")
