@@ -781,21 +781,32 @@ class Musicgui:
             self.keybinds = keybinds
             self._addchange("keybinds")
 
+
 def msgbox(title="", warning="Something happened!", inputtype=None):
-    """
-    Creates a new messagebox based off of inputtype
+    """Create a new messagebox based off of inputtype.
 
+    :param title: Title of message box.
+    :param warning: Message to be displayed in popup.
+    :param inputtype: Type of message box to display.
     inputtype can be any from:
-    {"Error", str, int, float}
+    {None (default), "Error", str, int, float}
 
-    String inputs will result in a messagebox, while datatype inputs result in a dialogbox.
+    None: Show an info style box with text $warning.
+
+    "Error": Show an error box with text $warning.
+
+    str: Request a string input from the user.
+
+    int: Request an integer input from the user.
+
+    float: Request a float input from the user.
     """
     root = tk.Tk()
     root.wm_withdraw()
     returnval = None
     if inputtype == "Error":
         returnval =  mb.showerror(title=title, message=warning)
-    elif inputtype == None:
+    elif inputtype is None:
         mb.showinfo(title=title or "Info", message=warning)
     elif inputtype == str:
         returnval = sd.askstring(title, warning, parent=root)
