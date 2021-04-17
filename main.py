@@ -64,7 +64,7 @@ class ServerUrls:
     if TESTINGMODE:
         home = "http://127.0.0.1:5000"
     else:
-        home = "http://btecify.ddns.net:5000"
+        home = "http://btecify.live:5000"
         pass  # TODO: Add behaviour for when server is not local.
 
     testauth = home + '/testauth'
@@ -128,20 +128,22 @@ class Song:
     duration = ""
     author = ""
     blacklist = False
+    thumbnail = ""
 
-    def __init__(self, vidid: str, name: str, url: str, duration: str, author: str, blacklist: bool = False):
+    def __init__(self, vidid: str, name: str, url: str, duration: str, author: str, thumbnail: str, blacklist: bool = False):
         self.vidid = vidid
         self.name = name
         self.url = url
         self.duration = duration
         self.author = author
+        self.thumbnail = thumbnail
         self.blacklist = blacklist
 
     @classmethod
     def createsongfromurl(cls, url: str):
         try:
             song = pafy.new(url)
-            return Song(song.videoid, song.title, url, song.duration, song.author)
+            return Song(song.videoid, song.title, url, song.duration, song.author, song.getbestthumb().split("?")[0])
         except ValueError as e:
             print("INVALID SONG URL!!!", e)
             return False
@@ -151,7 +153,9 @@ class Song:
             songname=self.name,
             songurl=self.url,
             duration=self.duration,
-            author=self.author
+            author=self.author,
+            vidid=self.vidid,
+            thumbnail=self.thumbnail
         )
 
 
@@ -203,7 +207,7 @@ class Playlist:
                     for video in playlistobject:
                         if video.videoid not in map(lambda a: a.vidid, self.ytplaylist):
                             if video.videoid not in map(lambda a: a.vidid, G.songset):
-                                newsong = Song(video.videoid, video.title, video.watchv_url, video.duration, video.author,)
+                                newsong = Song(video.videoid, video.title, video.watchv_url, video.duration, video.author, video.getbestthumb().split("?")[0])
                                 G.songset.add(newsong)
                                 self.ytplaylist.add(newsong)
                                 print(f"Downloading and adding {video.title}")
@@ -812,7 +816,8 @@ def main():
                 try:
                     isloggedin = session.get(ServerUrls.testauth).status_code != 401
                     if not isloggedin:
-                        if all([i in options['auth'] for i in ['username', 'password']]):
+                        print(options['auth'])
+                        if all([i in options['auth'] and type(options['auth'][i]) is str for i in ['username', 'password']]):
                             r = session.post(ServerUrls.auth, json=options['auth'])
                             if r.status_code == 422:
                                 musicGUI.msgbox("Bad Auth", "Invalid username. Set a new username.", "Error")
@@ -822,9 +827,9 @@ def main():
                                 musicGUI.msgbox("Successful", "Authentication was successful... Syncing...")
                                 isloggedin = True
                             else:
-                                raise Exception("Should never be reached.")
+                                raise Exception(f"Should never be reached. Status code: {r.status_code}")
                         else:
-                            musicGUI.msgbox("Bad Auth", "Username and/or password have not been set. Please set them before attempting to sync."
+                            musicGUI.msgbox("Bad Auth", "Username and/or password have not been set. Please set them before attempting to sync. "
                                                         "If you need an account, please contact Taran 😀", "Error")
 
                     if isloggedin:
@@ -857,28 +862,40 @@ def main():
 
 
 if __name__ == '__main__':
-    try:
-        with open(DATAFILE, "rb") as f:
-            obj: dict = pickle.load(f)
+    with open(DATAFILE, "rb") as f:
+        obj: dict = pickle.load(f)
 
-        if not obj['options'].get("version"):
-            obj['options']['version'] = semver.Version('0.0.0')
+    if not obj['options'].get("version"):
+        obj['options']['version'] = semver.Version('0.0.0')
 
-        cver = obj['options']['version']
-        if cver < semver.Version('1.1.0'):
-            if not obj['options'].get('keybinds'):
-                obj['options']['keybinds'] = {}
+    cver = obj['options']['version']
+    if cver < semver.Version('1.1.0'):
+        if not obj['options'].get('keybinds'):
+            obj['options']['keybinds'] = {}
 
-        if cver < semver.Version('1.2.0'):
-            obj['options']['discord'] = True
+    if cver < semver.Version('1.2.0'):
+        obj['options']['discord'] = True
 
-        if cver < semver.Version('1.3.0'):
-            obj['options']['auth'] = {'username': None, 'password': None}
+    if cver < semver.Version('1.3.0'):
+        obj['options']['auth'] = {'username': None, 'password': None}
 
-        obj['options']['version'] = semver.Version(VERSION)
+        musicGUI.msgbox("Getting thumbnails", "The app is currently fetching thumbnails. This may take a minute depending on how many songs are stored... Please wait.")
 
-        with open(DATAFILE, "wb") as f:
-            pickle.dump(obj, f)
-    except Exception:
-        pass
+        for song in obj['songs']:
+            try:
+                if song.thumbnail == "":
+                    print(f"Doing {song.name}")
+                    song.thumbnail = pafy.new(song.url).getbestthumb().split("?")[0]
+            except Exception as e:
+                print(e)
+
+    for song in obj['songs']:
+        print(song.duration)
+
+    obj['options']['version'] = semver.Version(VERSION)
+
+    with open(DATAFILE, "wb") as f:
+        pickle.dump(obj, f)
+
+
     main()
