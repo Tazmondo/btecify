@@ -497,6 +497,7 @@ def main():
     gui: musicGUI.Musicgui = musicGUI.G.musicgui
     print("Started GUI!")
 
+    # Start User hotkeys
     def hotkeyfunction(hotkeyname):
         def newfunction():
             gui.output = hotkeyname
@@ -514,6 +515,23 @@ def main():
         )
         newlistener.start()
         return newlistener
+
+    # Start media key listening
+    def onpress(key):
+        mediabindings = {
+            kb.Key.media_play_pause: hotkeyfunction("pause"),
+            kb.Key.media_next: hotkeyfunction("skip"),
+            kb.Key.media_volume_up: lambda: gui.__setattr__("output", ("volume", player.getvolume()+1)),
+            kb.Key.media_volume_down: lambda: gui.__setattr__("output", ("volume", player.getvolume() - 1)),
+        }
+        try:
+            keyfunc = mediabindings[key]
+            keyfunc()
+            print("Media key pressed")
+        except (KeyError, AttributeError):
+            pass
+
+    #kb.Listener(on_press=onpress).start()
 
     cursave = savedata(saveinfo)
     savedlog = []
