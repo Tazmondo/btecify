@@ -183,7 +183,7 @@ class Musicgui:
         keybindings = [i for i in defaults['keybinds']]
         keybindlist = []
         for x in range(len(keybindings)):
-            kbname = keybindings[x]
+            kbname = str(keybindings[x])
             newframe = ttk.Frame(keybindlistframe)
             newframe.grid(column=0, row=x)
 
@@ -749,6 +749,10 @@ class Musicgui:
         if self.paused:
             self.paused = False
             self._addchange('songinfo')
+
+    def updatevolume(self, volume: int):
+        if volume != self.volume.get():
+            self.volume.set(volume)
 
     def updatesonglist(self, songlist: set[Song]):
         songlist = sorted(list(songlist), key=lambda a: a.name.lower())

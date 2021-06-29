@@ -6,6 +6,7 @@ import threading
 import time
 import webbrowser
 import pathlib
+from collections.abc import Callable
 
 import requests
 import appdirs
@@ -44,7 +45,7 @@ APPNAME = "btecify"
 TESTINGMODE = False
 if os.path.isfile("testingmodedetectionfile"):
     TESTINGMODE = True
-VERSION = "1.3.0"
+VERSION = "1.3.1"
 
 if not TESTINGMODE:
     DATADIRECTORY = appdirs.user_data_dir(APPNAME, appauthor=False)
@@ -453,10 +454,12 @@ def main():
             'keybinds': {
                 'pause': '<alt>+p',
                 'skip': '<alt>+s',
+                'volumeup': '<f18>',
+                'volumedown': '<f15>',
+            },
             'auth': {
                 'username': None,
                 'password': None
-            }
             },
             'discord': True
         },
@@ -498,21 +501,36 @@ def main():
     print("Started GUI!")
 
     # Start User hotkeys
-    def hotkeyfunction(hotkeyname):
-        def newfunction():
-            gui.output = hotkeyname
+    def hotkeyfunction(hotkeyname, value: Callable=None):
+        if not value:
+            def newfunction():
+                gui.output = hotkeyname
+        else:
+            def newfunction():
+                gui.output = (hotkeyname, value())
         return newfunction
 
-    hotkeylistener = kb.GlobalHotKeys(
-        hotkeys={v: hotkeyfunction(k) for k, v in keybinddict.items()}
-    )
+    def createlistener():
+        hotkeydict = {}
+        for k, v in keybinddict.items():
+            if k in ("skip", "pause"):
+                hotkeydict[v] = hotkeyfunction(k)
+            elif k == "volumeup":
+                hotkeydict[v] = hotkeyfunction('volume', lambda: options['volume']+4)
+            elif k == "volumedown":
+                hotkeydict[v] = hotkeyfunction('volume', lambda: options['volume']-4)
+
+        hotkeylistener = kb.GlobalHotKeys(
+            hotkeys=hotkeydict
+        )
+        return hotkeylistener
+
+    hotkeylistener = createlistener()
     hotkeylistener.start()
 
     def updatelistener(listener):
         listener.stop()
-        newlistener = kb.GlobalHotKeys(
-            hotkeys={v: hotkeyfunction(k) for k, v in keybinddict.items()}
-        )
+        newlistener = createlistener()
         newlistener.start()
         return newlistener
 
@@ -575,6 +593,7 @@ def main():
             return None
 
     def updategui():  # ORDER IS IMPORTANT!!!
+        gui.updatevolume(options['volume'])
         gui.updatecurrentplaylist(playlist)
         gui.updatesonglist(G.songset.copy())
         gui.updatesong(player.song, player.manual)
@@ -626,9 +645,14 @@ def main():
             elif command.lower() == "volume" or command == 'v':
                 if len(inp) > 1:
                     value = inp[1]
+                    if value < 0: value = 0
+                    elif value > 100: value = 100
                     player.setvolume(value)
                     options['volume'] = value
                     print(f"Setting volume to {value}%")
+                    player.toaster.show_toast(title="Volume", msg=f"Volume: {value}%", icon_path=ICON, duration=1.5,
+                                            threaded=True,
+                                            sound=False)
                 else:
                     print(f"Volume: {player.getvolume()}")
 
@@ -803,7 +827,7 @@ def main():
 
             elif command == "updatekeybinds" and len(inp) >= 2:
                 old = keybinddict.copy()
-                kbupdate = inp[1:]
+                kbupdate = inp[1:][0]
                 for j in kbupdate:
                     keybinddict[j[0]] = j[1]
                 try:
@@ -907,8 +931,9 @@ if __name__ == '__main__':
             except Exception as e:
                 print(e)
 
-    for song in obj['songs']:
-        print(song.duration)
+    if cver < semver.Version('1.3.1'):
+        obj['options']['keybinds']['volumeup'] = '<f18>'
+        obj['options']['keybinds']['volumedown'] = '<f15>'
 
     obj['options']['version'] = semver.Version(VERSION)
 
