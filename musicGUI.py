@@ -88,6 +88,7 @@ class Musicgui:
     displayplaylistsongsnew: list[Song] = []
     progressbar: int = 0
     paused: bool = False
+    loop: bool = False
     playlistswithtargetsong: list[Playlist] = None
     extraplaylistselection: list[Playlist] = []
     logs = []
@@ -368,19 +369,22 @@ class Musicgui:
         bottommiddleframe.grid(column=2, row=1, sticky='wnse')
 
         pausebutton = ttk.Button(bottommiddleframe, text="PAUSE", command=self._pause)
-        pausebutton.grid(row=0, column=0, columnspan=2, sticky='ew')
+        pausebutton.grid(row=0, column=0, columnspan=3, sticky='ew')
 
         skipbutton = ttk.Button(bottommiddleframe, text="SKIP", command=self._skip)
         skipbutton.grid(row=1, sticky='w')
 
+        loopbutton = ttk.Button(bottommiddleframe, text="LOOP: DISABLED", command=lambda: self._setoutput("loop"))
+        loopbutton.grid(row=1, column=1, padx=120)
+
         removesongbutton = ttk.Button(bottommiddleframe, text="REMOVE SONG", command=self._playerremovesongbutton)
-        removesongbutton.grid(row=1, column=1, sticky='e')
+        removesongbutton.grid(row=1, column=2, sticky='e')
 
         volumeslider = ttk.LabeledScale(bottommiddleframe, from_=0, to=100, variable=self.volume, compound='bottom')
         volumeslider.scale.set(defaults['volume'])
         volumeslider.scale.configure(command=self._volchange)
         volumeslider.label.update()
-        volumeslider.grid(row=2, columnspan=2, sticky='ew')
+        volumeslider.grid(row=2, columnspan=3, sticky='ew')
 
         bottommiddleframe.grid_rowconfigure((0, 1, 2), weight=1)
         bottommiddleframe.grid_columnconfigure((0, 1), weight=1)
@@ -432,6 +436,11 @@ class Musicgui:
                     else:
                         songdesc['text'] = "PLAYING"
                         pausebutton['text'] = "PAUSE"
+
+                if self.loop:
+                    loopbutton['text'] = "LOOP: ENABLED"
+                else:
+                    loopbutton['text'] = "LOOP: DISABLED"
 
                 targetsong = self._getselectedsong()
                 if targetsong is not None:
@@ -749,6 +758,13 @@ class Musicgui:
         if self.paused:
             self.paused = False
             self._addchange('songinfo')
+
+    def setloop(self, loop: bool):
+        if loop:
+            self.loop = True
+        else:
+            self.loop = False
+        self._addchange('songinfo')
 
     def updatevolume(self, volume: int):
         if volume != self.volume.get():

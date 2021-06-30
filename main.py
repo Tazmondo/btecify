@@ -613,10 +613,16 @@ def main():
     # WEBSERVER STUFF #
     session = requests.session()
 
+    loop = False
+
     while True:
         if player.finished() and playlist and len(playlist.getsongs()) > 0:
-            while not player.nextsong():
-                print("SONG FAILED TO PLAY. MOVING ON.")
+            if not loop:
+                while not player.nextsong():
+                    print("SONG FAILED TO PLAY. MOVING ON.")
+            else:
+                while not player.nextsong(override=player.song):
+                    print("SONG FAILED TO PLAY. MOVING ON.")
 
         if gui.output[0]:
             inp = gui.output
@@ -641,6 +647,10 @@ def main():
                     print("Unpausing...")
                     player.pause()
                     gui.unpause()
+
+            elif command == "loop":
+                loop = not loop
+                gui.setloop(loop)
 
             elif command.lower() == "volume" or command == 'v':
                 if len(inp) > 1:
